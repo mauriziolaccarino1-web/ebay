@@ -154,13 +154,15 @@ def crea(percorso_log: str, profilo: dict, cartella_profilo: str = ".", modello_
             ingressi = [{"id": i["id"]} for i in modello_def.get("ingressi", [])]  # sono già tra i canali
             usate = []
             for bid, u in ris["tabelle_usate"].items():
-                usate.append({"blocco": bid, "tabella": u["tabella"],
+                usate.append({"blocco": bid, "tabella": u["tabella"], "nomi": u.get("nomi"),
+                              "idx": b64(u["idx"]) if "idx" in u else None,
                               "x": b64(u["x"]) if "x" in u else None, "y": b64(u["y"]) if "y" in u else None})
             oss = model.confronto_osservati(modello_def, ris, logici, tg)
             mod_out = {"def": modello_def, "criteri": crit, "blocchi": blocchi, "ingressi": ingressi,
                        "rami": [{"id": k, "b64": b64(v)} for k, v in ris["rami"].items()],
                        "logica": b64(ris["logica"]), "uscite": [{"id": k, "b64": b64(v)} for k, v in ris["uscite"].items()],
-                       "tabelle_usate": usate, "osservati": oss, "parametri": parametri or modello_def.get("parametri", {})}
+                       "tabelle_usate": usate, "osservati": oss, "scelte_parametri": parametri or {},
+                       "parametri_usati": {k: sorted(set(float(x) for x in np.unique(v))) for k, v in ris["parametri"].items()}}
         except model.ErroreModello as e:
             note.append(f"modello non eseguito: {e}")
 

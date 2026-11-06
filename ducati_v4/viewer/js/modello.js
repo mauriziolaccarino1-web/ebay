@@ -50,14 +50,47 @@
     });
   }
 
-  /* canali: {id: Float32Array|Float64Array}; S struttura; buf Uint8Array; par parametri extra */
-  function esegui(M, canali, n, dt, S, buf, parExtra) {
-    const par = Object.assign({}, M.parametri || {}, parExtra || {});
+  // parametri in forma estesa (numero oppure {valore, canale, nome, valori})
+  function infoParametri(M) {
+    const out = {};
+    for (const [k, v] of Object.entries(M.parametri || {})) {
+      const d = v !== null && typeof v === "object" ? Object.assign({}, v) : { valore: v };
+      if (d.valore === undefined) d.valore = 0;
+      if (!d.canale) d.canale = null;
+      if (!d.nome) d.nome = k;
+      out[k] = d;
+    }
+    return out;
+  }
+  // valore campione per campione: scelta "can" (o nessuna scelta con canale presente) = dal registrato
+  function valoriParametri(M, canali, n, scelte) {
+    const out = {};
+    for (const [k, d] of Object.entries(infoParametri(M))) {
+      let sc = scelte ? scelte[k] : undefined;
+      if (sc === undefined || sc === null || sc === "") sc = d.canale && canali[d.canale] ? "can" : d.valore;
+      if (sc === "can" && d.canale && canali[d.canale]) {
+        const c = canali[d.canale], a = new Float64Array(n);
+        let ult = NaN;
+        for (let i = 0; i < n; i++) { const v = Math.round(c[i]); if (Number.isFinite(v)) ult = v; a[i] = ult; }
+        let primo = a.find((v) => Number.isFinite(v));
+        if (primo === undefined) primo = +d.valore;
+        for (let i = 0; i < n && !Number.isFinite(a[i]); i++) a[i] = primo;
+        out[k] = a;
+      } else out[k] = pieno(n, sc === "can" ? +d.valore : +sc);
+    }
+    return out;
+  }
+
+  /* canali: {id: Float32Array|Float64Array}; S struttura; buf Uint8Array; scelte {parametro: numero | "can"} */
+  function esegui(M, canali, n, dt, S, buf, scelte) {
     const env = { dt };
     const t = new Float64Array(n);
     for (let i = 0; i < n; i++) t[i] = i * dt;
     env.t = t;
-    for (const [k, v] of Object.entries(par)) env[k] = pieno(n, +v);
+    const parV = valoriParametri(M, canali, n, scelte);
+    Object.assign(env, parV);
+    const par = {};
+    for (const [k, v] of Object.entries(parV)) par[k] = v[0];
     for (const ing of M.ingressi || []) {
       const c = canali[ing.id];
       if (!c) throw new Error(`ingresso '${ing.id}' assente nella sessione`);
@@ -119,24 +152,37 @@
         }
         case "satura": out = ins[0].map((v) => Math.min(Math.max(v, b.min ?? -Infinity), b.max ?? Infinity)); break;
         case "tabella": {
-          const nome = nomeTabella(b.tabella, par);
-          const T = leggiTab(nome);
-          const def = tab.get(nome);
-          const xv = arg("x");
-          out = new Float64Array(n);
-          if (def.tipo === "curva") {
-            const ax = T.x.valori, z = T.z[0];
-            for (let i = 0; i < n; i++) out[i] = DV.calib.lookup1(ax, z, xv[i]);
-            usate[b.id] = { tabella: nome, x: xv };
-          } else if (def.tipo === "valore") {
-            out.fill(T.z[0][0]);
-            usate[b.id] = { tabella: nome };
-          } else {
-            const yv = arg("y");
-            const ax = T.x.valori, ay = T.y.valori, z = T.z;
-            for (let i = 0; i < n; i++) out[i] = DV.calib.lookup2(ax, ay, z, xv[i], yv[i]);
-            usate[b.id] = { tabella: nome, x: xv, y: yv };
+          // con {parametro} nel nome: ogni campione legge la tabella del suo livello (anche se cambia in pista)
+          const segn = (b.tabella.match(/\{(\w+)\}/g) || []).map((x) => x.slice(1, -1));
+          const nomi = [], idx = new Int16Array(n).fill(-1), perNome = new Map();
+          for (let i = 0; i < n; i++) {
+            const nome = segn.length ? b.tabella.replace(/\{(\w+)\}/g, (_, k) => String(parV[k][i])) : b.tabella;
+            let k = perNome.get(nome);
+            if (k === undefined) { k = nomi.length; nomi.push(nome); perNome.set(nome, k); }
+            idx[i] = k;
           }
+          if (!nomi.some((nm) => tab.has(nm))) throw new Error(`blocco ${b.id}: tabella '${nomi[0]}' non presente nella struttura`);
+          const xv = arg("x");
+          let yv = null;
+          out = new Float64Array(n).fill(NaN);
+          const letti = nomi.map((nm) => (tab.has(nm) ? leggiTab(nm) : null));
+          let tipoTab = null;
+          for (let i = 0; i < n; i++) {
+            const T = letti[idx[i]];
+            if (!T) { idx[i] = -1; continue; }  // livello senza tabella (es. 0 = spento)
+            const def = tab.get(nomi[idx[i]]);
+            tipoTab = def.tipo || "mappa";
+            if (tipoTab === "curva") out[i] = DV.calib.lookup1(T.x.valori, T.z[0], xv[i]);
+            else if (tipoTab === "valore") out[i] = T.z[0][0];
+            else { if (!yv) yv = arg("y"); out[i] = DV.calib.lookup2(T.x.valori, T.y.valori, T.z, xv[i], yv[i]); }
+          }
+          const uso = nomi.map(() => 0);
+          for (let i = 0; i < n; i++) if (idx[i] >= 0) uso[idx[i]]++;
+          const prin = nomi[uso.indexOf(Math.max(...uso))];
+          usate[b.id] = { tabella: prin, nomi, idx };
+          const tp = (tab.get(prin) || {}).tipo || "mappa";
+          if (tp !== "valore") usate[b.id].x = xv;
+          if (tp === "mappa") usate[b.id].y = yv || arg("y");
           break;
         }
         case "selettore": {
@@ -210,8 +256,24 @@
       uscite[u.id] = o;
       env[u.id] = o;
     }
-    return { env, criteri, rami, logica, uscite, usate, ordine: ordine.map((b) => b.id), parametri: par };
+    return { env, criteri, rami, logica, uscite, usate, ordine: ordine.map((b) => b.id), parametri: par, parV };
+  }
+  // tabella letta da un blocco all'istante i
+  function tabellaAl(r, bid, i) {
+    const u = r && r.usate[bid];
+    if (!u) return null;
+    if (u.idx && u.nomi) { const k = u.idx[i]; return k >= 0 ? u.nomi[k] : null; }
+    return u.tabella;
+  }
+  // tutte le tabelle lette da un blocco fra i campioni a e b
+  function tabelleFra(r, bid, a, b) {
+    const u = r && r.usate[bid];
+    if (!u) return [];
+    if (!u.idx || !u.nomi) return [u.tabella];
+    const visti = new Set();
+    for (let i = a; i <= b; i++) if (u.idx[i] >= 0) visti.add(u.nomi[u.idx[i]]);
+    return [...visti];
   }
 
-  DV.modello = { esegui, ordina, dipendenze, nomeTabella };
+  DV.modello = { esegui, ordina, dipendenze, nomeTabella, infoParametri, valoriParametri, tabellaAl, tabelleFra };
 })();

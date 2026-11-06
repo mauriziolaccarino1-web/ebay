@@ -18,6 +18,7 @@ Tipi di blocco:
   costante(valore) | abs | neg | min | max | somma | prodotto | espressione(espressione)
   passabasso(tau_s | alfa) | derivata | rampa(su_per_s, giu_per_s) | satura(min,max)
   tabella(tabella, x, y?)  -> lookup 1D/2D sulla tabella della struttura; nome con {parametro} ammesso
+                             (es. SOGLIA_TC{tc}: con il livello letto dal CAN la tabella segue il livello istante per istante)
   selettore(condizione, se_vero, se_falso)
   confronto(a, op, b)       -> 0/1
   isteresi(ingresso, on, off)
@@ -203,15 +204,58 @@ def _margine(v, s, op):
     return (s - v) if op in (">", ">=") else (v - s)
 
 
+def info_parametri(modello: dict) -> dict:
+    """Parametri del modello in forma estesa: {nome: {"valore": default, "canale": canale logico o None, "nome": ..., "valori": [...]}}.
+    Nel JSON un parametro può essere un numero ("tc": 2) o un oggetto
+    ("tc": {"valore": 2, "canale": "dtc_livello", "nome": "Traction control (DTC)", "valori": [0, 1, 2, ..., 8]})."""
+    out = {}
+    for k, v in (modello.get("parametri") or {}).items():
+        d = dict(v) if isinstance(v, dict) else {"valore": v}
+        d.setdefault("valore", 0)
+        d.setdefault("canale", None)
+        d.setdefault("nome", k)
+        out[k] = d
+    return out
+
+
+def valori_parametri(modello: dict, segnali: dict, n: int, scelte=None) -> dict:
+    """Valore di ogni parametro campione per campione.
+    scelte: {nome: numero | "can"}; senza scelta si usa il canale CAN se c'è, altrimenti il valore di default.
+    Dal CAN: arrotondato, i buchi (NaN) presi dal valore precedente."""
+    out = {}
+    for k, d in info_parametri(modello).items():
+        scelta = (scelte or {}).get(k)
+        if scelta is None:
+            scelta = "can" if d["canale"] and d["canale"] in segnali else d["valore"]
+        if scelta == "can" and d["canale"] in segnali:
+            a = np.round(np.asarray(segnali[d["canale"]], dtype=float))
+            ok = np.isfinite(a)
+            if ok.any():
+                idx = np.where(ok, np.arange(n), 0)
+                np.maximum.accumulate(idx, out=idx)
+                a = a[idx]
+                a[: int(np.argmax(ok))] = a[int(np.argmax(ok))]
+            else:
+                a = np.full(n, float(d["valore"]))
+            out[k] = a
+        else:
+            out[k] = np.full(n, float(d["valore"] if scelta == "can" else scelta))
+    return out
+
+
+def _nome_tabella(modello_nome: str, valori: dict) -> str:
+    return modello_nome.format(**{k: int(v) if float(v).is_integer() else v for k, v in valori.items()})
+
+
 def esegui(modello: dict, segnali: dict, t: np.ndarray, struttura=None, buf=None, parametri=None) -> dict:
-    """segnali: {id_ingresso: array} già ricampionati sulla griglia t.
+    """segnali: {id_ingresso: array} già ricampionati sulla griglia t (anche i canali dei parametri, es. dtc_livello).
+    parametri: {nome: numero | "can"}.
     Ritorna: {"valori": {id: array}, "criteri": {...}, "rami": {...}, "logica": array, "tabelle_usate": {...}}"""
-    par = dict(modello.get("parametri", {}))
-    par.update(parametri or {})
     n = len(t)
     dt = float(np.median(np.diff(t))) if n > 1 else 0.01
     env = {"t": t, "dt": dt}
-    env.update({k: np.full(n, float(v)) for k, v in par.items()})
+    par_v = valori_parametri(modello, segnali, n, parametri)
+    env.update(par_v)
     for ing in modello.get("ingressi", []):
         sid = ing["id"]
         if sid not in segnali:
@@ -258,21 +302,45 @@ def esegui(modello: dict, segnali: dict, t: np.ndarray, struttura=None, buf=None
         elif tipo == "satura":
             out = np.clip(ins[0], b.get("min", -np.inf), b.get("max", np.inf))
         elif tipo == "tabella":
-            nome = b["tabella"].format(**{k: int(v) if float(v).is_integer() else v for k, v in par.items()})
-            if nome not in tab_per_id or buf is None:
-                raise ErroreModello(f"blocco {bid}: tabella '{nome}' non disponibile (serve struttura + file .bin)")
-            letta = calib.leggi_tabella(struttura, tab_per_id[nome], buf)
-            xv = arg("x")
-            if tab_per_id[nome].get("tipo") == "curva":
-                out = calib.lookup1d(letta["x"].valori, letta["z"][0], xv)
-                usate[bid] = {"tabella": nome, "x": xv}
-            elif tab_per_id[nome].get("tipo") == "valore":
-                out = np.full(n, float(letta["z"][0, 0]))
-                usate[bid] = {"tabella": nome}
+            # con {parametro} nel nome la tabella può cambiare nel tempo (livello cambiato in pista):
+            # ogni gruppo di campioni con gli stessi livelli legge la sua tabella
+            segnaposto = re.findall(r"\{(\w+)\}", b["tabella"])
+            if segnaposto:
+                chiavi = np.stack([par_v[p] for p in segnaposto], axis=1)
+                combinazioni, inv = np.unique(chiavi, axis=0, return_inverse=True)
+                inv = np.asarray(inv).reshape(-1)
             else:
-                yv = arg("y")
-                out = calib.lookup2d(letta["x"].valori, letta["y"].valori, letta["z"], xv, yv)
-                usate[bid] = {"tabella": nome, "x": xv, "y": yv}
+                combinazioni, inv = [()], np.zeros(n, dtype=int)
+            nomi = [_nome_tabella(b["tabella"], dict(zip(segnaposto, c))) for c in combinazioni]
+            if buf is None or not struttura:
+                raise ErroreModello(f"blocco {bid}: serve struttura + file .bin")
+            if not any(nm in tab_per_id for nm in nomi):
+                raise ErroreModello(f"blocco {bid}: tabella '{nomi[0]}' non presente nella struttura")
+            xv = arg("x")
+            yv = None
+            out = np.full(n, np.nan)
+            idx = np.full(n, -1, dtype=int)
+            for k, nm in enumerate(nomi):
+                sel = inv == k
+                if nm not in tab_per_id:
+                    continue  # es. livello 0 = controllo spento: nessuna tabella, uscita NaN
+                letta = calib.leggi_tabella(struttura, tab_per_id[nm], buf)
+                tt = tab_per_id[nm].get("tipo")
+                idx[sel] = k
+                if tt == "curva":
+                    out[sel] = calib.lookup1d(letta["x"].valori, letta["z"][0], xv[sel])
+                elif tt == "valore":
+                    out[sel] = float(letta["z"][0, 0])
+                else:
+                    yv = arg("y")
+                    out[sel] = calib.lookup2d(letta["x"].valori, letta["y"].valori, letta["z"], xv[sel], yv[sel])
+            uso = np.bincount(idx[idx >= 0], minlength=len(nomi)) if (idx >= 0).any() else np.zeros(len(nomi), int)
+            usate[bid] = {"tabella": nomi[int(np.argmax(uso))], "nomi": nomi, "idx": idx}
+            tipo_tab = tab_per_id.get(usate[bid]["tabella"], {}).get("tipo")
+            if tipo_tab != "valore":
+                usate[bid]["x"] = xv
+            if tipo_tab == "mappa":
+                usate[bid]["y"] = yv if yv is not None else arg("y")
         elif tipo == "selettore":
             out = np.where(valuta(b["condizione"], env) > 0, arg("se_vero"), arg("se_falso"))
         elif tipo == "confronto":
@@ -322,7 +390,7 @@ def esegui(modello: dict, segnali: dict, t: np.ndarray, struttura=None, buf=None
         env[u["id"]] = val
     return {"valori": {k: v for k, v in env.items() if isinstance(v, np.ndarray) and v.shape == (n,)},
             "criteri": criteri, "rami": rami, "logica": logica, "uscite": uscite, "tabelle_usate": usate,
-            "ordine": [b["id"] for b in ordina(modello)]}
+            "ordine": [b["id"] for b in ordina(modello)], "parametri": par_v}
 
 
 def confronto_osservati(modello: dict, ris: dict, segnali: dict, t) -> list:

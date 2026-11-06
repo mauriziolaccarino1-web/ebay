@@ -178,7 +178,9 @@ canvas.tela { display: block; width: 100%; background: var(--superficie); border
 /* linea del tempo */
 .linea-tempo { background: var(--superficie); border-top: 1px solid var(--bordo); padding: 6px 16px 8px; display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
 #timeline { width: 100%; height: 56px; cursor: pointer; }
-.comandi { display: flex; gap: 6px; align-items: center; }
+.comandi { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#livelli { font-size: 12px; flex-basis: 100%; }
+#parametri { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 @media (max-width: 700px) { .linea-tempo { grid-template-columns: 1fr; } }
 
 #avvisi { position: fixed; right: 16px; bottom: 90px; display: grid; gap: 6px; z-index: 50; max-width: min(460px, calc(100vw - 32px)); }

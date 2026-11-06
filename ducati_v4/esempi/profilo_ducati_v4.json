@@ -137,7 +137,44 @@
    "unita": "km",
    "nome": "odometro",
    "verificato": "sì"
+  },
+  "dtc_off": {
+   "segnale": "RX_WheelSpeed_018.DTC_OFF",
+   "unita": "",
+   "nome": "DTC spento",
+   "verificato": "sì (formule AiM)"
+  },
+  "dwc_off": {
+   "segnale": "RX_WheelSpeed_018.DWC_OFF",
+   "unita": "",
+   "nome": "DWC spento",
+   "verificato": "sì, bit b5.6"
+  },
+  "dsc_off": {
+   "segnale": "RX_WheelSpeed_018.DSC_OFF",
+   "unita": "",
+   "nome": "DSC spento",
+   "verificato": "da verificare"
+  },
+  "ebc_livello": {
+   "segnale": "ECU_Status190.EBC_Level",
+   "unita": "",
+   "nome": "livello EBC (freno motore)",
+   "verificato": "sì (eco della richiesta 0x300)"
+  },
+  "tc_eff": {
+   "espressione": "where(dtc_off > 0.5, 0, round(dtc_livello))",
+   "nome": "TC effettivo (0 = spento)"
+  },
+  "aw_eff": {
+   "espressione": "where(dwc_off > 0.5, 0, round(dwc_livello))",
+   "nome": "AW effettivo (0 = spento)"
+  },
+  "scs_eff": {
+   "espressione": "where(dsc_off > 0.5, 0, round(dsc_livello))",
+   "nome": "SCS effettivo (0 = spento)"
   }
  },
- "scatola": "r9"
+ "scatola": "r9",
+ "_livelli": "Livelli selezionabili sulla V4 R: potenza (Power Mode, 0x080), TC = DTC, SCS = DSC, AW = DWC (0x018, anche dal cruscotto 0x020 come livello-1), freno motore = EBC (0x190). I canali *_eff valgono 0 quando il controllo è spento. Scale e valori da verificare al primo turno: DTC_Lv viene dalle formule AiM (0.5 per bit, +1)."
 }

@@ -8,12 +8,81 @@
   "rami: ogni ramo è una condizione sui criteri; logica = come i rami portano all'intervento.",
   "osservati: canali CAN che dicono cosa ha fatto davvero la centralina (es. trq_fast > 0), per misurare quanto il modello concorda.",
   "Le formule qui sotto sono SEGNAPOSTO: sostituiscile con la catena decodificata.",
-  "Il criterio sulla derivata (es. derivata di potenza) va segnato con \"derivata\": true: la scheda Trigger per ramo mostra per ogni ramo quanto manca a quel trigger. Se ogni ramo ha la sua soglia di derivata, fai un criterio per ramo (C4a, C4b...) e mettilo nella condizione del suo ramo."
+  "Il criterio sulla derivata (es. derivata di potenza) va segnato con \"derivata\": true: la scheda Trigger per ramo mostra per ogni ramo quanto manca a quel trigger. Se ogni ramo ha la sua soglia di derivata, fai un criterio per ramo (C4a, C4b...) e mettilo nella condizione del suo ramo.",
+  "Livelli (potenza, tc, scs, aw, freno_motore): ogni parametro ha il canale CAN da cui leggerlo. Nel visualizzatore si sceglie 'dal CAN' (segue il livello registrato, anche se cambiato in pista) o un valore fisso. Se una tabella esiste per ogni livello, nel blocco scrivi il nome col segnaposto, es. \"tabella\": \"CRIT1_SOGLIA_TC{tc}\"; il livello 0 (spento) senza tabella dà uscita vuota = nessun intervento."
  ],
  "nome": "Panigale V4 2025 – controllo in piega (da compilare)",
  "frequenza_hz": 100,
  "parametri": {
-  "livello": 2
+  "potenza": {
+   "valore": 0,
+   "canale": "modo_motore",
+   "nome": "Livello potenza (Power Mode)",
+   "breve": "Potenza",
+   "valori": [
+    0,
+    1,
+    2,
+    3
+   ]
+  },
+  "tc": {
+   "valore": 2,
+   "canale": "tc_eff",
+   "nome": "Traction control (DTC)",
+   "breve": "TC",
+   "valori": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ]
+  },
+  "scs": {
+   "valore": 1,
+   "canale": "scs_eff",
+   "nome": "Slide control (DSC)",
+   "breve": "SCS",
+   "valori": [
+    0,
+    1,
+    2,
+    3
+   ]
+  },
+  "aw": {
+   "valore": 2,
+   "canale": "aw_eff",
+   "nome": "Wheelie control (DWC)",
+   "breve": "AW",
+   "valori": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ]
+  },
+  "freno_motore": {
+   "valore": 2,
+   "canale": "ebc_livello",
+   "nome": "Freno motore (EBC)",
+   "breve": "Freno motore",
+   "valori": [
+    1,
+    2,
+    3
+   ]
+  }
  },
  "ingressi": [
   {
@@ -84,7 +153,8 @@
    "tipo": "tabella",
    "tabella": "CRIT1_SOGLIA",
    "x": "giri",
-   "y": "piega_f"
+   "y": "piega_f",
+   "_nota": "se c'è una tabella per livello: \"CRIT1_SOGLIA_TC{tc}\""
   },
   {
    "id": "soglia2",

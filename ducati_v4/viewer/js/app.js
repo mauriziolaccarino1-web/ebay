@@ -19,7 +19,7 @@
   const sporca = () => { for (const v of Object.values(viste)) v.sporca = true; if (viste[S.vista]) { viste[S.vista].disegna(); viste[S.vista].sporca = false; } };
   DV.on("sessione", () => { $("#vuoto").hidden = !!S.sess; aggiornaGiri(); aggiornaCurve(); aggiornaParametri(); sporca(); disegnaTimeline(); aggiornaOra(); });
   DV.on("modello", () => { sporca(); disegnaTimeline(); aggiornaParametri(); });
-  DV.on("modello", () => aggiornaStatoCal());
+  DV.on("modello", () => { aggiornaStatoCal(); aggiornaOra(); });
   DV.on("calibrazione", () => { aggiornaStatoCal(); for (const v of Object.values(viste)) v.sporca = true; if (["mappe", "pneumatico"].includes(S.vista)) { viste[S.vista].disegna(); viste[S.vista].sporca = false; } });
   DV.on("cursore", () => { aggiornaOra(); disegnaCursoreTimeline(); const v = viste[S.vista]; if (v && v.cursore) v.cursore(); });
 
@@ -115,18 +115,29 @@
     if (best >= 0) DV.vaiA(best);
   });
 
+  // un menu per livello: "dal CAN" (il valore registrato istante per istante) oppure un valore fisso
   function aggiornaParametri() {
     const box = $("#parametri");
     box.innerHTML = "";
     if (!S.modello || !S.modello.parametri) return;
-    for (const [k, v] of Object.entries(S.modello.parametri)) {
-      const inp = el("input", { type: "number", value: S.parametri[k] ?? v, step: "1", title: `parametro del modello: ${k}` });
-      inp.addEventListener("change", () => {
-        S.parametri[k] = +inp.value;
-        if (!S.binOrig) DV.avviso("per ricalcolare con un altro parametro carica il file .bin e la struttura", "errore");
+    for (const [k, d] of Object.entries(DV.modello.infoParametri(S.modello))) {
+      const sel = el("select", { title: `${d.nome}: "dal CAN" segue il livello registrato (anche se cambiato in pista); un numero lo fissa per tutta la sessione` });
+      const canale = d.canale && DV.canale(d.canale);
+      if (canale) {
+        const visti = new Set();
+        for (let i = 0; i < S.n; i += 50) if (Number.isFinite(canale.dati[i])) visti.add(Math.round(canale.dati[i]));
+        sel.append(el("option", { value: "can" }, `dal CAN (${[...visti].sort((a, b) => a - b).join("→") || "–"})`));
+      }
+      const valori = d.valori || Array.from({ length: 9 }, (_, j) => j);
+      for (const v of valori) sel.append(el("option", { value: String(v) }, String(v)));
+      const scelta = S.parametri[k];
+      sel.value = scelta === undefined || scelta === "can" ? (canale ? "can" : String(d.valore)) : String(scelta);
+      sel.addEventListener("change", () => {
+        S.parametri[k] = sel.value === "can" ? "can" : +sel.value;
+        if (!S.binOrig) DV.avviso("per ricalcolare con un altro livello carica il file .bin e la struttura", "errore");
         DV.ricalcola();
       });
-      box.append(el("label", { class: "fila", style: { gap: "4px" } }, k, inp));
+      box.append(el("label", { class: "fila", style: { gap: "4px" } }, d.breve || d.nome.split(" (")[0], sel));
     }
   }
 
@@ -211,6 +222,7 @@
     const g = DV.giroDi(S.i);
     const sg = DV.valore("s_giro");
     const cv = DV.testoCurva();
+    $("#livelli").textContent = DV.testoLivelli();
     $("#ora").textContent = `t ${t.toFixed(2)} s` + (g ? ` · ${g.tipo === "lanciato" ? "giro " + g.numero : g.tipo === "uscita" ? "uscita box" : g.tipo}` : "") + (cv ? ` · ${cv}` : "") + (Number.isFinite(sg) ? ` · ${sg.toFixed(0)} m` : "");
     const q = DV.curvaDi();
     const sc = $("#curva");

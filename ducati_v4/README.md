@@ -178,6 +178,17 @@ delle due era davvero montata (demo: NOSLICK 95%, SLICK 36%).
 - **Profilo pneumatico**: raggio di rotolamento in funzione della piega (originale/modificato), sezione della gomma ricostruita dal profilo con il punto di contatto alla piega del cursore, correzione della velocità ruota, effetto della modifica sullo slittamento calcolato e generatore toroidale. C'è anche la **verifica sul registrato**: in rilascio lo slittamento corretto dovrebbe stare a zero a ogni piega. Se cresce con la piega, il profilo in tabella non è quello della gomma montata.
 - **Giri**: tempi, distacchi, sovrapposizione per distanza e distacco lungo il giro, con le fasce delle curve.
 
+**Livelli della moto (potenza, TC, SCS, AW, freno motore).** Ogni livello è un parametro del modello, legato al suo
+canale CAN: sulla Ducati TC = DTC, SCS = DSC e AW = DWC (0x018, con il bit di spento), freno motore = EBC (0x190) e
+potenza = Power Mode (0x080). In alto c'è un menu per livello:
+- **dal CAN** (predefinito): la catena usa il livello registrato istante per istante, quindi se in pista cambi il TC da 2 a 3 il ricalcolo lo segue. Il menu mostra i valori trovati, per esempio «dal CAN (2→3)»;
+- **un numero**: fissa quel livello per tutta la sessione, per vedere sullo stesso giro cosa avrebbe fatto la centralina con un altro livello.
+
+I livelli in uso all'istante del cursore sono nella barra in basso. Se le tabelle cambiano con il livello, nel modello
+il nome ha il segnaposto, per esempio `CRIT1_SOGLIA_TC{tc}`. In *Mappe*, *Schema software* e *Tabelle dal vivo* compare
+la tabella del livello di quell'istante: *in uso ora* è quella letta adesso, *in uso* una letta in un altro momento del
+giro. Un livello senza tabella, per esempio 0 = spento, non fa intervenire quel ramo.
+
 **In che giro e in che curva sono.** La barra in basso dice sempre giro, curva, fase e metri dal traguardo, per esempio
 `giro 3 · T4 sinistra · ingresso, apice fra 30 m · 1084 m`, oppure `rettilineo → T5 fra 210 m`. Le curve sono
 riconosciute dal giro modello: tratti con piega oltre 12°, con la velocità minima se manca la piega. Sono numerate dal

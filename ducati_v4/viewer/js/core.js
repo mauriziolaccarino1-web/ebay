@@ -136,7 +136,7 @@
     for (const c of sess.canali) S.canali.set(c.id, { id: c.id, nome: c.nome, unita: c.unita, gruppo: c.gruppo, dati: daB64(c.b64) });
     if (sess.modello) {
       for (const b of sess.modello.blocchi) S.canali.set("m:" + b.id, { id: "m:" + b.id, nome: b.id, unita: unitaBlocco(sess.modello.def, b.id), gruppo: "modello", dati: daB64(b.b64) });
-      S.parametri = Object.assign({}, sess.modello.parametri || sess.modello.def.parametri || {});
+      S.parametri = Object.assign({}, sess.modello.scelte_parametri || {});
       if (!S.modello) S.modello = sess.modello.def;
     }
     S.t = new Float64Array(S.n);
@@ -160,6 +160,7 @@
     if (!S.modello || !S.sess) { DV.emit("modello"); return; }
     const canali = {};
     for (const ing of S.modello.ingressi || []) { const c = DV.canale(ing.id); if (c) canali[ing.id] = c.dati; }
+    for (const d of Object.values(DV.modello.infoParametri(S.modello))) { const c = d.canale && DV.canale(d.canale); if (c) canali[d.canale] = c.dati; }
     const esegui = (buf) => DV.modello.esegui(S.modello, canali, S.n, S.dt, S.struttura, buf, S.parametri);
     try {
       if ((quale === "entrambi" || quale === "orig") && S.binOrig) S.ris.orig = esegui(S.binOrig);
@@ -191,8 +192,10 @@
     const uscite = {};
     for (const u of m.uscite) uscite[u.id] = daB64(u.b64);
     const usate = {};
-    for (const u of m.tabelle_usate) usate[u.blocco] = { tabella: u.tabella, x: u.x && daB64(u.x), y: u.y && daB64(u.y) };
-    return { env, criteri, rami, logica: daB64(m.logica), uscite, usate, ordine: m.blocchi.map((b) => b.id), parametri: m.parametri, dalFile: true };
+    for (const u of m.tabelle_usate) usate[u.blocco] = { tabella: u.tabella, nomi: u.nomi || null, idx: u.idx ? daB64(u.idx) : null, x: u.x && daB64(u.x), y: u.y && daB64(u.y) };
+    const parV = {};
+    for (const [k, d] of Object.entries(DV.modello.infoParametri(m.def))) { const c = d.canale && DV.canale(d.canale); parV[k] = c ? c.dati : new Float64Array(S.n).fill(+d.valore); }
+    return { env, criteri, rami, logica: daB64(m.logica), uscite, usate, ordine: m.blocchi.map((b) => b.id), parametri: m.scelte_parametri || {}, parV, dalFile: true };
   }
 
   // ---------------------------------------------------------------- riconoscimento dei file caricati
@@ -321,6 +324,13 @@
       for (const c of C) if (sg.dati[i - 1] < c.apice && sg.dati[i] >= c.apice) out.push({ i, c });
     }
     return (apiciCache = out);
+  };
+  // livelli (potenza, TC, SCS, AW, freno motore…) all'istante i, come li usa la catena ricalcolata
+  DV.testoLivelli = (i = S.i, r = null) => {
+    r = r || S.ris.orig || S.ris.mod;
+    if (!r || !r.parV || !S.modello) return "";
+    const info = DV.modello.infoParametri(S.modello);
+    return Object.entries(r.parV).map(([k, v]) => `${(info[k] && info[k].breve) || k} ${Number.isFinite(v[i]) ? v[i] : "–"}`).join(" · ");
   };
   DV.testoCurva = (i = S.i) => {
     const q = DV.curvaDi(i);

@@ -79,7 +79,7 @@
       // finestre: una per ogni blocco tabella, ordinate per criterio servito
       const blocchi = (M.blocchi || []).filter((b) => b.tipo === "tabella");
       const info = blocchi.map((b) => {
-        const nome = DV.modello.nomeTabella(b.tabella, S.parametri);
+        const nome = DV.modello.tabellaAl(r, b.id, S.i) || (r.usate[b.id] && r.usate[b.id].tabella) || DV.modello.nomeTabella(b.tabella, {});
         const v = valle(b.id);
         const cs = crit.filter((c) => v.has(c)), rs = rami.filter((x) => v.has(x));
         const ordine = cs.length ? Math.min(...cs.map((c) => crit.indexOf(c))) : 99;
@@ -178,7 +178,7 @@
       const ramiOn = new Set((M.rami || []).filter((x) => r.rami[x.id] && r.rami[x.id][i] > 0.5).map((x) => x.id));
       const critOn = new Set((M.criteri || []).filter((c) => r.criteri[c.id].attivo[i] > 0.5).map((c) => c.id));
       this.stato.innerHTML = "";
-      this.stato.append(el("h3", {}, `t ${(i * S.dt).toFixed(2)} s · ${DV.nomeVista()}`),
+      this.stato.append(el("h3", {}, `t ${(i * S.dt).toFixed(2)} s · ${DV.nomeVista()}`), el("div", { class: "nota" }, DV.testoLivelli(i, r)),
         el("div", { class: "stato " + (L ? "si" : "no"), style: { marginBottom: "8px" } }, el("span", { class: "pallino" }), L ? "INTERVENTO" : "nessun intervento"),
         el("table", { class: "dati" }, el("tbody", {},
           (M.rami || []).map((x) => el("tr", { class: ramiOn.has(x.id) ? "sel" : "" }, el("td", {}, (ramiOn.has(x.id) ? "● " : "○ ") + x.id), el("td", {}, x.nome || ""), el("td", { class: "tenue" }, x.condizione))),
@@ -195,6 +195,8 @@
         x.v.textContent = x.tipo === "bool" ? (val > 0.5 ? "● vero" : "○ falso") : DV.fmt(val);
         x.tr.classList.toggle("sel", x.tipo === "bool" && val > 0.5);
       }
+      // il livello è cambiato e il blocco legge un'altra tabella: ridisegna le finestre
+      if (this.finestre.some((w) => { const nm = DV.modello.tabellaAl(r, w.f.b.id, i); return nm && nm !== w.f.nome; })) { this.disegna(); return; }
       // --- finestre
       const passi = Math.round(opz.scia / S.dt);
       for (const w of this.finestre) {

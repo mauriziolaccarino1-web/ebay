@@ -49,7 +49,7 @@
     for (const b of M.blocchi || []) {
       const dip = [...DV.modello.dipendenze(b)].filter((d) => ids.has(d));
       let sotto = b.tipo;
-      if (b.tipo === "tabella") { sotto = DV.modello.nomeTabella(b.tabella, S.parametri); for (const p of b.tabella.match(/\{(\w+)\}/g) || []) dip.push(p.slice(1, -1)); }
+      if (b.tipo === "tabella") { sotto = DV.modello.tabellaAl(DV.risVista(), b.id, S.i) || b.tabella; for (const p of b.tabella.match(/\{(\w+)\}/g) || []) dip.push(p.slice(1, -1)); }
       else if (b.tipo === "espressione") sotto = b.espressione;
       else if (b.tipo === "passabasso") sotto = b.alfa ? `α = ${b.alfa}` : `τ = ${b.tau_s} s`;
       add(b.id, "blocco", sotto, dip, { def: b });
@@ -88,7 +88,7 @@
       n.w = STILE.blocco.w; n.h = STILE.blocco.h;
       if (n.tipo === "criterio") n.h = 90;
       if (n.def && n.def.tipo === "tabella") {
-        const nome = DV.modello.nomeTabella(n.def.tabella, S.parametri);
+        const nome = DV.modello.tabellaAl(DV.risVista(), n.id, S.i) || (DV.risVista().usate[n.id] || {}).tabella;
         const tab = S.struttura && S.struttura.tabelle.find((t) => t.id === nome);
         if (tab && buf) {
           try {
@@ -327,6 +327,8 @@
       const r = DV.risVista();
       if (!r) return;
       const i = S.i, nodi = this.nodi;
+      // il livello è cambiato: il blocco legge un'altra tabella, ridisegna lo schema
+      for (const n of nodi.values()) if (n.tab) { const nm = DV.modello.tabellaAl(r, n.id, i); if (nm && nm !== n.tab.id) { this.disegna(); return; } }
       // ramo attivo: rami accesi + logica; tutto ciò che li alimenta
       // percorso attivo: i rami accesi e ciò che li alimenta; logica e uscite senza passare dai rami fermi
       const attivi = new Set();
@@ -372,7 +374,7 @@
         a.el.setAttribute("marker-end", `url(#m-${on ? "on" : mt ? "monte" : a.tipo || "fr"})`);
       }
       const ramiOn = [...nodi.values()].filter((n) => n.tipo === "ramo" && r.rami[n.id][i] > 0.5).map((n) => n.etichetta);
-      this.sottotitolo.textContent = `t ${(i * S.dt).toFixed(2)} s · calcolato con ${DV.nomeVista()} · ` + (ramiOn.length ? "ramo attivo: " + ramiOn.join(", ") : r.logica[i] > 0.5 ? "intervento" : "nessun ramo attivo");
+      this.sottotitolo.textContent = `t ${(i * S.dt).toFixed(2)} s · calcolato con ${DV.nomeVista()} · ${DV.testoLivelli(i, r)} · ` + (ramiOn.length ? "ramo attivo: " + ramiOn.join(", ") : r.logica[i] > 0.5 ? "intervento" : "nessun ramo attivo");
       this.pannelli(r, i, attivi);
     },
 

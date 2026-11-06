@@ -193,6 +193,10 @@ BO_ 208 DEMO_Controlli: 8 ECU
  SG_ Livello_TC : 0|4@1+ (1,0) [0|8] "" DEMO
  SG_ TC_attivo : 4|1@1+ (1,0) [0|1] "" DEMO
  SG_ Taglio_coppia : 8|8@1+ (0.5,0) [0|100] "%" DEMO
+ SG_ Livello_AW : 16|4@1+ (1,0) [0|8] "" DEMO
+ SG_ Livello_SCS : 20|4@1+ (1,0) [0|8] "" DEMO
+ SG_ Livello_FM : 24|4@1+ (1,0) [0|8] "" DEMO
+ SG_ Livello_potenza : 28|4@1+ (1,0) [0|8] "" DEMO
 
 CM_ BO_ 160 "DEMO: velocita ruote come le invierebbe la centralina (raggio nominale)";
 CM_ SG_ 192 Piega "DEMO: angolo di piega con segno, destra positivo";
@@ -303,7 +307,12 @@ def bin_demo(S, variante="NOSLICK"):
 MODELLO_DEMO = {
     "nome": "DEMO – taglio coppia in piega a 4 criteri (inventato)",
     "frequenza_hz": 100,
-    "parametri": {"livello": 2},
+    "parametri": {
+        "potenza": {"valore": 1, "canale": "potenza", "nome": "Livello potenza", "breve": "Potenza", "valori": [1, 2, 3, 4]},
+        "tc": {"valore": 2, "canale": "tc_livello", "nome": "TC (DTC)", "breve": "TC", "valori": [0, 1, 2, 3]},
+        "scs": {"valore": 1, "canale": "scs_livello", "nome": "SCS (DSC)", "breve": "SCS", "valori": [0, 1, 2]},
+        "aw": {"valore": 3, "canale": "aw_livello", "nome": "AW (DWC)", "breve": "AW", "valori": [0, 1, 2, 3, 4, 5, 6, 7, 8]},
+        "freno_motore": {"valore": 2, "canale": "fm_livello", "nome": "Freno motore (EBC)", "breve": "Freno motore", "valori": [1, 2, 3]}},
     "ingressi": [
         {"id": "v_ant", "segnale": "v_ant", "unita": "km/h", "descrizione": "velocità ruota anteriore (raggio nominale)"},
         {"id": "v_post", "segnale": "v_post", "unita": "km/h", "descrizione": "velocità ruota posteriore (raggio nominale)"},
@@ -323,7 +332,8 @@ MODELLO_DEMO = {
         {"id": "slip_f", "tipo": "passabasso", "ingressi": ["slip"], "tau_s": 0.03, "unita": "%"},
         {"id": "dslip", "tipo": "derivata", "ingressi": ["slip_f"], "unita": "%/s"},
         {"id": "dslip_f", "tipo": "passabasso", "ingressi": ["dslip"], "tau_s": 0.05, "unita": "%/s"},
-        {"id": "soglia_slip", "tipo": "tabella", "tabella": "DEMO_SOGLIA_SLIP_L{livello}", "x": "giri", "y": "piega_f", "unita": "%"},
+        {"id": "soglia_slip", "tipo": "tabella", "tabella": "DEMO_SOGLIA_SLIP_L{tc}", "x": "giri", "y": "piega_f", "unita": "%",
+         "descrizione": "una mappa per livello di TC: con il livello letto dal CAN segue i cambi fatti in pista"},
         {"id": "piega_min", "tipo": "tabella", "tabella": "DEMO_PIEGA_MIN", "x": "v_rif", "unita": "deg"},
         {"id": "gas_min", "tipo": "tabella", "tabella": "DEMO_GAS_MIN", "x": "gas", "unita": "%"},
         {"id": "soglia_dslip", "tipo": "tabella", "tabella": "DEMO_SOGLIA_DSLIP", "x": "marcia", "unita": "%/s"},
@@ -357,7 +367,11 @@ PROFILO_DEMO = {
         "marcia": {"segnale": "DEMO_Motore.Marcia", "unita": ""},
         "piega": {"segnale": "DEMO_IMU.Piega", "unita": "deg"},
         "imbardata": {"segnale": "DEMO_IMU.Imbardata", "unita": "deg/s"},
-        "tc_livello": {"segnale": "DEMO_Controlli.Livello_TC", "unita": ""},
+        "tc_livello": {"segnale": "DEMO_Controlli.Livello_TC", "unita": "", "nome": "livello TC"},
+        "aw_livello": {"segnale": "DEMO_Controlli.Livello_AW", "unita": "", "nome": "livello AW"},
+        "scs_livello": {"segnale": "DEMO_Controlli.Livello_SCS", "unita": "", "nome": "livello SCS"},
+        "fm_livello": {"segnale": "DEMO_Controlli.Livello_FM", "unita": "", "nome": "livello freno motore"},
+        "potenza": {"segnale": "DEMO_Controlli.Livello_potenza", "unita": "", "nome": "livello potenza"},
         "tc_attivo": {"segnale": "DEMO_Controlli.TC_attivo", "unita": ""},
         "taglio_can": {"segnale": "DEMO_Controlli.Taglio_coppia", "unita": "%"},
     },
@@ -374,6 +388,10 @@ def genera(cartella: str, seme=7):
     buf_s = bin_demo(Ss, "SLICK")
     # la "centralina vera" del demo monta la NOSLICK (profilo pneumatico un po' diverso dalla gomma vera)
     segn = {k: sim[k] for k in ("v_ant", "v_post", "piega", "giri", "gas", "marcia")}
+    t = sim["t"]
+    livelli = {"tc_livello": np.where(t > 450.0, 3.0, 2.0), "aw_livello": np.full(len(t), 3.0), "scs_livello": np.full(len(t), 1.0),
+               "fm_livello": np.full(len(t), 2.0), "potenza": np.full(len(t), 1.0)}
+    segn.update(livelli)
     ris = model.esegui(MODELLO_DEMO, segn, sim["t"], Sn, bytes(buf))
     tc = ris["logica"]
     taglio = ris["uscite"]["taglio"]
@@ -390,7 +408,9 @@ def genera(cartella: str, seme=7):
                                                               (farfalla[idx] / 0.5, 24, 8), (sim["marcia"][idx], 32, 4)], n)))
     fr.append((t[idx] + 0.0060 + jit[2], 0x0C0, _frame_intel([(sim["piega"][idx] / 0.01, 0, 16), (sim["imbardata"][idx] / 0.01, 16, 16),
                                                               (sim["ax"][idx] / 0.001, 32, 16), (sim["ay"][idx] / 0.001, 48, 16)], n)))
-    fr.append((t[idx] + 0.0085 + jit[3], 0x0D0, _frame_intel([(np.full(n, 2), 0, 4), (tc[idx], 4, 1), (taglio[idx] / 0.5, 8, 8)], n)))
+    fr.append((t[idx] + 0.0085 + jit[3], 0x0D0, _frame_intel([(livelli["tc_livello"][idx], 0, 4), (tc[idx], 4, 1), (taglio[idx] / 0.5, 8, 8),
+                                                              (livelli["aw_livello"][idx], 16, 4), (livelli["scs_livello"][idx], 20, 4),
+                                                              (livelli["fm_livello"][idx], 24, 4), (livelli["potenza"][idx], 28, 4)], n)))
     T = np.concatenate([f[0] for f in fr]) + 1762430400.0
     I = np.concatenate([np.full(n, f[1]) for f in fr])
     D = np.concatenate([f[2] for f in fr])

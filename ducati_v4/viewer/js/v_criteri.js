@@ -44,7 +44,7 @@
         return;
       }
       radice.append(el("div", { class: "nota", style: { marginBottom: "8px" } },
-        `${S.modello.nome || "modello"} · parametri ${JSON.stringify(r.parametri || {})}` +
+        `${S.modello.nome || "modello"} · livelli ${Object.entries(DV.modello.infoParametri(S.modello)).map(([k, d]) => `${d.breve || k} ${S.parametri[k] === undefined || S.parametri[k] === "can" ? (d.canale && DV.canale(d.canale) ? "dal CAN" : d.valore) : S.parametri[k]}`).join(", ")}` +
         (DV.confrontoAttivo() ? ` · A = ${DV.nomeA()}, B = ${DV.nomeB()} ricalcolate sullo stesso giro registrato` : ` · calibrazione ${DV.nomeA()}`)));
       this.carte = el("div", { class: "carte" });
       this.rami = el("div", { class: "pannello" });

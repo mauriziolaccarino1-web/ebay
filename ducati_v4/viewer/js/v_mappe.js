@@ -8,12 +8,20 @@
 
   DV.on("apriTabella", (id) => { corrente = id; sel = null; });
 
-  // tabelle lette dal modello (id blocco -> nome tabella con i parametri attuali)
+  // tabelle lette dalla catena nel tratto scelto (giro o sessione): nome -> {blocco, ora = letta all'istante del cursore}
   function tabelleInUso() {
     const m = new Map();
-    for (const b of (S.modello && S.modello.blocchi) || []) if (b.tipo === "tabella") m.set(DV.modello.nomeTabella(b.tabella, S.parametri), b.id);
+    const r = S.ris.mod || S.ris.orig;
+    if (!r) return m;
+    const [a, b] = DV.intervallo();
+    for (const bl of (S.modello && S.modello.blocchi) || []) {
+      if (bl.tipo !== "tabella") continue;
+      const ora = DV.modello.tabellaAl(r, bl.id, S.i);
+      for (const nm of DV.modello.tabelleFra(r, bl.id, a, b)) m.set(nm, { blocco: bl.id, ora: nm === ora });
+    }
     return m;
   }
+  const bloccoDi = (u) => (u ? u.blocco : undefined);
   // B (copia di lavoro) diversa da A?
   function diversa(tab) {
     if (!S.binOrig || !S.binMod) return false;
@@ -29,7 +37,7 @@
   function uso(tab, T) {
     const r = S.ris.mod || S.ris.orig;
     if (!r) return null;
-    const blocco = tabelleInUso().get(tab.id);
+    const blocco = bloccoDi(tabelleInUso().get(tab.id));
     const u = blocco && r.usate[blocco];
     if (!u || !u.x) return null;
     const [a, b] = DV.intervallo();
@@ -39,6 +47,7 @@
     for (let i = a; i <= b; i++) {
       const vx = u.x[i];
       if (!Number.isFinite(vx)) continue;
+      if (u.idx && u.nomi[u.idx[i]] !== tab.id) continue;  // in quell'istante il livello usava un'altra tabella
       const fx = DV.calib.posizione(ax, vx);
       const ix = Math.floor(fx), wx = fx - ix;
       let iy = 0, wy = 0;
@@ -82,7 +91,7 @@
             const v = el("div", { class: "voce" + (t.id === corrente ? " sel" : "") },
               el("span", { class: "id" }, t.id),
               el("span", { class: "fila", style: { gap: "4px" } }, el("span", { class: "nota" }, `${t.nome || ""} · ${rr}×${cc}`),
-                inUso.has(t.id) ? el("span", { class: "badge uso", title: "letta dal blocco " + inUso.get(t.id) }, "in uso") : null,
+                inUso.has(t.id) ? el("span", { class: "badge uso", title: "letta dal blocco " + inUso.get(t.id).blocco + (S.giro ? " nel giro scelto" : " nella sessione") }, inUso.get(t.id).ora ? "in uso ora" : "in uso") : null,
                 S.binOrig && S.rif !== S.cfr && diversa(t) ? el("span", { class: "badge", title: `${DV.nomeB()} diversa da ${DV.nomeA()}` }, "≠ A") : null,
                 editata(t) ? el("span", { class: "badge mod", title: "modificata nella copia di lavoro" }, "✎ modificata") : null,
                 t.verificato === false ? el("span", { class: "badge" }, "da verificare") : null));
@@ -95,6 +104,7 @@
       soloUso.addEventListener("change", riempi);
       riempi();
       if (!corrente) corrente = [...inUso.keys()][0] || S.struttura.tabelle[0].id;
+      this.inUsoOra = [...inUso].filter(([, v]) => v.ora).map(([k]) => k).join(",");
       this.centro = el("div", { class: "righe" });
       radice.append(el("div", { class: "griglia2" }, lista, this.centro));
       this.disegnaTabella();
@@ -114,8 +124,8 @@
       const testa = el("div", { class: "pannello" },
         el("div", { class: "fila", style: { justifyContent: "space-between" } },
           el("h3", {}, `${tab.id} · ${tab.nome || ""}`),
-          el("span", { class: "fila" }, inUso.has(tab.id) ? el("span", { class: "badge uso" }, `in uso ora (blocco ${inUso.get(tab.id)})`) :
-            famiglia ? el("span", { class: "badge" }, `non in uso con i parametri attuali ${JSON.stringify(S.parametri)}`) : el("span", { class: "badge" }, "non letta dal modello"))),
+          el("span", { class: "fila" }, inUso.has(tab.id) ? el("span", { class: "badge uso" }, inUso.get(tab.id).ora ? `in uso ora (blocco ${inUso.get(tab.id).blocco} · ${DV.testoLivelli()})` : `letta ${S.giro ? "nel giro" : "nella sessione"}, non in questo istante (${DV.testoLivelli()})`) :
+            famiglia ? el("span", { class: "badge" }, `non letta con i livelli di questa sessione`) : el("span", { class: "badge" }, "non letta dal modello"))),
         el("div", { class: "nota" }, `${tab.descrizione || ""} · indirizzo ${typeof tab.indirizzo === "object" ? Object.entries(tab.indirizzo).map(([k, v]) => k + " " + v).join(", ") : tab.indirizzo} · ${tab.dtype || "u16"} ${tab.endian || "le"} · scala ${tab.scala ?? 1} · offset ${tab.offset ?? 0} · unità ${tab.unita || "–"}` +
           (To.x ? ` · asse x: ${To.x.nome || ""} ${To.x.unita || ""}${To.x.segnale ? " ← " + To.x.segnale : ""}` : "") + (To.y ? ` · asse y: ${To.y.nome || ""} ${To.y.unita || ""}${To.y.segnale ? " ← " + To.y.segnale : ""}` : "") +
           (tab.fonte ? ` · fonte: ${tab.fonte}` : "")),
@@ -253,8 +263,8 @@
       };
       // punto di lavoro
       const r = S.ris.mod || S.ris.orig;
-      const b = tabelleInUso().get(this.tab.id);
-      const u = r && b && r.usate[b];
+      const b = bloccoDi(tabelleInUso().get(this.tab.id));
+      const u = r && b && DV.modello.tabellaAl(r, b, S.i) === this.tab.id && r.usate[b];
       if (u && u.x && S.sess) {
         const xv = u.x[S.i];
         if (Number.isFinite(xv)) {
@@ -370,11 +380,14 @@
     },
 
     cursore() {
+      // se il livello cambia (tabella in uso diversa) aggiorna l'elenco e i segni
+      const ora = [...tabelleInUso()].filter(([, v]) => v.ora).map(([k]) => k).join(",");
+      if (this.inUsoOra !== undefined && ora !== this.inUsoOra && S.struttura) { this.inUsoOra = ora; this.disegna(); return; }
       if (this.tab && (this.tab.tipo === "curva" || this.tab.tipo === "valore")) this.disegnaCurva();
       if (!this.svg || !this.celle || !this.celle.length || !S.sess) return;
       const r = S.ris.mod || S.ris.orig;
-      const b = tabelleInUso().get(this.tab.id);
-      const u = r && b && r.usate[b];
+      const b = bloccoDi(tabelleInUso().get(this.tab.id));
+      const u = r && b && DV.modello.tabellaAl(r, b, S.i) === this.tab.id && r.usate[b];
       this.svg.innerHTML = "";
       if (!u || !u.x || this.tab.tipo !== "mappa") return;
       const cont = this.svg.parentElement;
