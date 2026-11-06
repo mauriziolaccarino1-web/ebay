@@ -347,6 +347,7 @@ PROFILO_DEMO = {
     "dbc": "demo.dbc",
     "pista": None,
     "linea": "vmax",
+    "curve": {"soglia_piega": 12, "piega_positiva": "sinistra"},
     "canali": {
         "v_ant": {"segnale": "DEMO_Ruote.V_ant", "unita": "km/h", "nome": "velocità ruota anteriore"},
         "v_post": {"segnale": "DEMO_Ruote.V_post", "unita": "km/h", "nome": "velocità ruota posteriore"},

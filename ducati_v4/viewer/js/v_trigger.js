@@ -90,6 +90,7 @@
       }
       gr.append(el("div", { class: "nota" }, "Banda rossa = ramo che lavora. La linea tratteggiata è la distanza del ramo intero dal suo trigger: diventa 0 quando tutte le condizioni del ramo sono vere."));
       this.perDistanza(radice);
+      this.perCurva(radice);
       this.tabella(radice);
       this.cursore();
     },
@@ -117,9 +118,41 @@
         });
         const g = el("div");
         box.append(g);
-        DV.grafico(g, { titolo: `${a.ra.id} · ${d.c.id} ${d.c.nome}`, x: xs, gruppo: "distanza", unita: "× soglia", etichettaX: "distanza nel giro (m)", y: [-1, 2], altezza: 170,
+        DV.grafico(g, { titolo: `${a.ra.id} · ${d.c.id} ${d.c.nome}`, x: xs, gruppo: "distanza", unita: "× soglia", etichettaX: "distanza nel giro (m)", y: [-1, 2], altezza: 170, curve: true,
           serie, xDi: (i) => DV.valore("s_giro", i), alClic: () => {} });
       }
+    },
+
+    // per ogni curva: quante volte scatta ogni ramo e quanto ci si avvicina al trigger della derivata (giri lanciati)
+    perCurva(dove) {
+      const C = DV.curve(), sg = DV.canale("s_giro"), ng = DV.canale("n_giro");
+      if (!C.length || !sg) return;
+      const lanc = new Set(DV.giri().filter((g) => g.tipo === "lanciato").map((g) => g.numero));
+      const col = [];
+      for (const a of this.A) { col.push({ a, d: null }); for (const d of a.der) col.push({ a, d }); }
+      const righe = C.map((c) => {
+        const celle = col.map((k) => {
+          let n = 0, prima = false, mn = Infinity, dove = -1;
+          for (let i = 0; i < S.n; i++) {
+            const s = sg.dati[i];
+            const dentro = lanc.has(ng.dati[i]) && s >= c.inizio && s <= c.fine;
+            if (!dentro) { prima = false; continue; }
+            if (!k.d) { const on = k.a.attivo[i] > 0.5; if (on && !prima) n++; prima = on; }
+            else if (k.d.norm[i] < mn) { mn = k.d.norm[i]; dove = i; }
+          }
+          if (!k.d) return el("td", { class: "n" }, String(n));
+          const g = dove >= 0 ? ng.dati[dove] : null;
+          return el("td", { class: "n", "data-i": dove }, mn === Infinity ? "–" : `${mn.toFixed(2)} · giro ${g}`);
+        });
+        return el("tr", {}, el("td", {}, DV.nomeCurva(c)), el("td", {}, c.verso || ""), ...celle);
+      });
+      const testa = el("tr", {}, el("th", {}, "curva"), el("th", {}, "verso"),
+        ...col.map((k) => el("th", { class: "n" }, k.d ? `${k.a.ra.id} ${k.d.c.id}: min · giro` : `${k.a.ra.id}: scatti`)));
+      const tab = el("table", { class: "dati" }, el("thead", {}, testa), el("tbody", {}, righe));
+      tab.addEventListener("click", (e) => { const td = e.target.closest("td[data-i]"); if (td && +td.dataset.i >= 0) DV.vaiA(+td.dataset.i); });
+      dove.append(el("div", { class: "pannello", style: { marginTop: "12px" } }, el("h3", {}, "Per curva (giri lanciati)"),
+        el("div", { class: "nota" }, "scatti = quante volte il ramo si accende dentro la curva, sommando i giri lanciati; min = distanza minima dal trigger della derivata e in quale giro. Clic su un valore: il cursore va lì."),
+        el("div", { class: "scorre" }, tab)));
     },
 
     tabella(dove) {
@@ -144,7 +177,9 @@
           let mn = Infinity, dove = -1;
           for (let i = i0; i < i1; i++) if (c.d.norm[i] < mn) { mn = c.d.norm[i]; dove = i; }
           const s = sg && dove >= 0 ? sg.dati[dove] : NaN;
-          return el("td", { class: "n", "data-i": dove, title: "clic: vai all'istante" }, `${mn === Infinity ? "–" : mn.toFixed(2)} · ${Number.isFinite(s) ? s.toFixed(0) + " m" : "–"}`);
+          const q = dove >= 0 ? DV.curvaDi(dove) : null;
+          const dc = q ? (q.c ? ` ${q.c.id}` : " rettilineo") : "";
+          return el("td", { class: "n", "data-i": dove, title: "clic: vai all'istante" }, `${mn === Infinity ? "–" : mn.toFixed(2)} · ${Number.isFinite(s) ? s.toFixed(0) + " m" + dc : "–"}`);
         });
         return el("tr", { "data-i": i0 }, el("td", {}, g.tipo === "lanciato" ? `giro ${g.numero}` : g.tipo), el("td", { class: "n" }, DV.tempo(g.tempo)), ...celle);
       });

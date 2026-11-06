@@ -17,7 +17,7 @@
   }
   $("#schede").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) mostra(b.dataset.vista); });
   const sporca = () => { for (const v of Object.values(viste)) v.sporca = true; if (viste[S.vista]) { viste[S.vista].disegna(); viste[S.vista].sporca = false; } };
-  DV.on("sessione", () => { $("#vuoto").hidden = !!S.sess; aggiornaGiri(); aggiornaParametri(); sporca(); disegnaTimeline(); aggiornaOra(); });
+  DV.on("sessione", () => { $("#vuoto").hidden = !!S.sess; aggiornaGiri(); aggiornaCurve(); aggiornaParametri(); sporca(); disegnaTimeline(); aggiornaOra(); });
   DV.on("modello", () => { sporca(); disegnaTimeline(); aggiornaParametri(); });
   DV.on("modello", () => aggiornaStatoCal());
   DV.on("calibrazione", () => { aggiornaStatoCal(); for (const v of Object.values(viste)) v.sporca = true; if (["mappe", "pneumatico"].includes(S.vista)) { viste[S.vista].disegna(); viste[S.vista].sporca = false; } });
@@ -93,6 +93,27 @@
     if (!S.giro) return [0, S.n - 1];
     return [DV.indiceDaTempo(DV.tRel(S.giro.t_inizio)), DV.indiceDaTempo(DV.tRel(S.giro.t_fine))];
   };
+
+  // menu delle curve: porta il cursore all'apice della curva nel giro scelto (o in quello del cursore)
+  function aggiornaCurve() {
+    const sc = $("#curva");
+    sc.innerHTML = "";
+    sc.append(el("option", { value: "" }, "vai alla curva…"));
+    DV.curve().forEach((c) => sc.append(el("option", { value: c.id }, `${DV.nomeCurva(c)}${c.verso ? " (" + c.verso + ")" : ""}`)));
+    sc.hidden = !DV.curve().length;
+  }
+  DV.on("curve", () => { aggiornaCurve(); sporca(); });
+  $("#curva").addEventListener("change", (e) => {
+    const c = DV.curve().find((x) => x.id === e.target.value);
+    if (!c) return;
+    const g = S.giro || DV.giroDi(S.i) || DV.giri().find((x) => x.tipo === "lanciato");
+    if (!g) return;
+    const ng = DV.canale("n_giro"), sg = DV.canale("s_giro");
+    const a = DV.indiceDaTempo(DV.tRel(g.t_inizio)), b = DV.indiceDaTempo(DV.tRel(g.t_fine));
+    let best = -1, d = Infinity;
+    for (let i = a; i < b; i++) if (ng.dati[i] === g.numero && Math.abs(sg.dati[i] - c.apice) < d) { d = Math.abs(sg.dati[i] - c.apice); best = i; }
+    if (best >= 0) DV.vaiA(best);
+  });
 
   function aggiornaParametri() {
     const box = $("#parametri");
@@ -189,7 +210,11 @@
     const t = S.i * S.dt;
     const g = DV.giroDi(S.i);
     const sg = DV.valore("s_giro");
-    $("#ora").textContent = `t ${t.toFixed(2)} s` + (g ? ` · ${g.tipo === "lanciato" ? "giro " + g.numero : g.tipo}` : "") + (Number.isFinite(sg) ? ` · ${sg.toFixed(0)} m` : "");
+    const cv = DV.testoCurva();
+    $("#ora").textContent = `t ${t.toFixed(2)} s` + (g ? ` · ${g.tipo === "lanciato" ? "giro " + g.numero : g.tipo === "uscita" ? "uscita box" : g.tipo}` : "") + (cv ? ` · ${cv}` : "") + (Number.isFinite(sg) ? ` · ${sg.toFixed(0)} m` : "");
+    const q = DV.curvaDi();
+    const sc = $("#curva");
+    if (q && q.c && sc.value !== q.c.id) sc.value = q.c.id;
   }
 
   // ---------------------------------------------------------------- riproduzione e tastiera

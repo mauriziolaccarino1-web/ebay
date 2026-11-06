@@ -123,7 +123,7 @@ def crea(percorso_log: str, profilo: dict, cartella_profilo: str = ".", modello_
         r = laps.stima_giri(tg, v, piega=logici.get("piega"), imbardata=logici.get("imbardata"),
                             lunghezza_nominale=pista if pista is not None else profilo.get("pista"),
                             linea=profilo.get("linea", "vmax"), linea_offset_m=profilo.get("linea_offset_m", 0.0),
-                            t_traguardo=profilo.get("t_traguardo"))
+                            t_traguardo=profilo.get("t_traguardo"), curve_opz=profilo.get("curve"))
         giri_out = r.dict()
         s, s_giro, n_giro = r.s, r.s_giro, r.n_giro
         note += r.note

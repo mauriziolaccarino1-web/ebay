@@ -141,7 +141,7 @@ def cmd_giri(a):
     if pista and str(pista).replace(".", "").isdigit():
         pista = float(pista)
     r = laps.stima_giri(tg, v, piega=lg.get("piega"), imbardata=lg.get("imbardata"), lunghezza_nominale=pista,
-                        linea=a.linea, linea_offset_m=a.offset, t_traguardo=a.t_traguardo)
+                        linea=a.linea, linea_offset_m=a.offset, t_traguardo=a.t_traguardo, curve_opz=prof.get("curve"))
     for n in r.note:
         print("-", n)
     print(f"\n{'giro':>4} {'tipo':<9} {'tempo':>10} {'distanza m':>10} {'qualità':>7}")
@@ -150,6 +150,11 @@ def cmd_giri(a):
         m, s = divmod(g.tempo, 60)
         segno = "  <- migliore" if migliore is not None and g.tempo == migliore else ""
         print(f"{g.numero:>4} {g.tipo:<9} {int(m):>3}:{s:06.3f} {g.distanza:>10.1f} {g.qualita:7.2f}{segno}")
+    if r.curve:
+        print(f"\n{'curva':<6} {'verso':<9} {'inizio m':>8} {'apice m':>8} {'fine m':>8} {'piega°':>7} {'v min':>6}")
+        for c in r.curve:
+            print(f"{c['id']:<6} {c['verso']:<9} {c['inizio']:>8.0f} {c['apice']:>8.0f} {c['fine']:>8.0f} "
+                  f"{(c['piega_max'] if c['piega_max'] is not None else float('nan')):>7.1f} {c['v_min']:>6.0f}  {c['nome']}")
     if a.json:
         with open(a.json, "w", encoding="utf-8") as fh:
             json.dump(r.dict(), fh, ensure_ascii=False, indent=1)

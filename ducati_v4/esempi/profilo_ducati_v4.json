@@ -5,6 +5,12 @@
  "pista": "vallelunga",
  "linea": "vmax",
  "linea_offset_m": 0,
+ "curve": {
+  "soglia_piega": 12,
+  "piega_positiva": "destra",
+  "nomi": [],
+  "_nota": "Le curve vengono riconosciute dalla piega e numerate dal traguardo (T1, T2...). Dopo il primo turno dai i nomi nella mappa del visualizzatore e incolla qui la lista ('copia i nomi per il profilo'). piega_positiva: verso della piega col segno + sul CAN (da verificare)."
+ },
  "pneumatico_ant": {
   "misura": "120/70 R17 slick",
   "R0_mm": 299.9,

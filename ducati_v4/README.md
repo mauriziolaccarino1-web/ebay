@@ -173,7 +173,20 @@ delle due era davvero montata (demo: NOSLICK 95%, SLICK 36%).
   Un clic su un blocco traccia a monte fino al segnale CAN, con la sequenza dei passi. Un doppio clic su una tabella la apre in *Mappe*. *Scarica SVG* salva lo schema di quell'istante. Le corsie si possono assegnare a mano con `"corsia"` nei blocchi e `"corsie"` nel modello.
 - **Mappe**: elenco con le tabelle *in uso* con i parametri attuali, *≠ A* e *✎ modificata*. Viste valori, differenza B − A, *dove lavora* (percentuale di tempo per cella nel giro scelto) e superficie 3D. Il punto di lavoro al cursore ha una scia di 3 s. Puoi modificare (imposta, somma, %, interpola, liscia, riporta all'originale, annulla, punti trascinabili sulle curve) e i criteri si ricalcolano subito sulla stessa acquisizione. Esporti il `.bin` con il checksum corretto oppure una patch `.json`.
 - **Profilo pneumatico**: raggio di rotolamento in funzione della piega (originale/modificato), sezione della gomma ricostruita dal profilo con il punto di contatto alla piega del cursore, correzione della velocità ruota, effetto della modifica sullo slittamento calcolato e generatore toroidale. C'è anche la **verifica sul registrato**: in rilascio lo slittamento corretto dovrebbe stare a zero a ogni piega. Se cresce con la piega, il profilo in tabella non è quello della gomma montata.
-- **Giri**: tempi, distacchi, sovrapposizione per distanza e distacco lungo il giro.
+- **Giri**: tempi, distacchi, sovrapposizione per distanza e distacco lungo il giro, con le fasce delle curve.
+
+**In che giro e in che curva sono.** La barra in basso dice sempre giro, curva, fase e metri dal traguardo, per esempio
+`giro 3 · T4 sinistra · ingresso, apice fra 30 m · 1084 m`, oppure `rettilineo → T5 fra 210 m`. Le curve sono
+riconosciute dal giro modello: tratti con piega oltre 12°, con la velocità minima se manca la piega. Sono numerate dal
+traguardo T1, T2… con verso, apice, piega massima e velocità minima.
+- In alto, *vai alla curva…* porta il cursore all'apice di quella curva nel giro scelto.
+- Sulla mappa della pista, la curva in cui sei è evidenziata. Un clic sull'etichetta le dà un nome (es. Curva Grande); un clic sulla pista porta lì il cursore.
+- *copia i nomi per il profilo* produce la voce `"curve": {"nomi": [...]}` da incollare nel profilo, così i nomi valgono su tutti i PC.
+- I numeri delle curve compaiono anche sopra i grafici nel tempo, all'istante dell'apice, giro per giro. Sui grafici per distanza compaiono come fasce.
+- In *Trigger per ramo* c'è la tabella *Per curva*: quante volte scatta ogni ramo in ogni curva e quanto ci si avvicina al trigger della derivata.
+
+In `profilo_ducati_v4.json`, `curve.piega_positiva` dice se la piega positiva sul CAN è a destra o a sinistra. È da
+verificare al primo turno: Vallelunga si gira in senso orario, quindi la maggior parte delle curve è a destra.
 - **Protocollo CAN**: esito, origine di ogni canale, integrità contatore/CRC, messaggi attesi, ID sconosciuti, controlli fisici.
 
 ## 6. Struttura e modello della centralina (da compilare con la decodifica)

@@ -58,11 +58,11 @@
       const box1 = el("div"), box2 = el("div");
       destra.append(box1, box2);
       if (!dati.length) { destra.append(el("p", { class: "nota" }, "Scegli i giri da confrontare.")); return; }
-      DV.grafico(box1, { titolo: `${c ? c.nome : canale} lungo il giro`, x: xs, gruppo: "distanza", unita: c ? c.unita : "", etichettaX: "distanza (m)", altezza: 230,
+      DV.grafico(box1, { titolo: `${c ? c.nome : canale} lungo il giro`, x: xs, gruppo: "distanza", unita: c ? c.unita : "", etichettaX: "distanza (m)", altezza: 230, curve: true,
         serie: dati.map((d, k) => ({ nome: `giro ${d.g.numero}`, dati: d.out, colore: DV.colSerie(k), unita: c ? c.unita : "" })),
         xDi: (i) => DV.valore("s_giro", i), alClic: () => {} });
       const rif = dati.reduce((m, d) => (!m || d.g.tempo < m.g.tempo ? d : m), null);
-      DV.grafico(box2, { titolo: `Distacco dal giro ${rif.g.numero} (positivo = più lento)`, x: xs, gruppo: "distanza", unita: "s", etichettaX: "distanza (m)", altezza: 180,
+      DV.grafico(box2, { titolo: `Distacco dal giro ${rif.g.numero} (positivo = più lento)`, x: xs, gruppo: "distanza", unita: "s", etichettaX: "distanza (m)", altezza: 180, curve: true,
         serie: dati.map((d, k) => ({ nome: `giro ${d.g.numero}`, dati: d.tempi.map((t, j) => t - rif.tempi[j]), colore: DV.colSerie(k), unita: "s", decimali: 3 })),
         xDi: (i) => DV.valore("s_giro", i), alClic: () => {} });
     },

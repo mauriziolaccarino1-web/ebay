@@ -42,11 +42,32 @@
       const destra = el("div", { class: "righe" });
       const grafici = el("div", { class: "pannello" });
       const sotto = el("div", { class: "fila", style: { alignItems: "stretch" } });
-      this.mappa = el("canvas", { class: "tela", style: { height: "320px", flex: "1 1 340px" } });
+      this.mappa = el("canvas", { class: "tela", style: { height: "340px", flex: "1 1 340px", cursor: "pointer" } });
+      this.mappa.addEventListener("click", (e) => {
+        const r = this.mappa.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+        const hit = (this.etichette || []).find((q) => x >= q.x && x <= q.x + q.w && y >= q.y && y <= q.y + q.h);
+        if (hit) {
+          const n = prompt(`Nome della curva ${hit.c.id} (vuoto = solo numero)`, DV.nomiCurve()[hit.c.id] || hit.c.nome || "");
+          if (n !== null) DV.salvaNomeCurva(hit.c.id, n.trim());
+          return;
+        }
+        // clic sulla pista: porta il cursore in quel punto del giro attuale
+        const G = S.sess.giri;
+        if (!G || !G.mappa_xy) return;
+        let best = 0, d = Infinity;
+        G.mappa_xy.forEach((p, k) => { const [px, py] = this.trasf(...p); const dd = (px - x) ** 2 + (py - y) ** 2; if (dd < d) { d = dd; best = k; } });
+        if (d > 400) return;
+        const s = best * G.mappa_ds, g = S.giro || DV.giroDi(S.i);
+        if (!g) return;
+        const ng = DV.canale("n_giro"), sgc = DV.canale("s_giro");
+        let ib = -1, dm = Infinity;
+        for (let i = DV.indiceDaTempo(DV.tRel(g.t_inizio)); i < DV.indiceDaTempo(DV.tRel(g.t_fine)); i++) if (ng.dati[i] === g.numero && Math.abs(sgc.dati[i] - s) < dm) { dm = Math.abs(sgc.dati[i] - s); ib = i; }
+        if (ib >= 0) DV.vaiA(ib);
+      });
       this.valori = el("div", { class: "pannello", style: { flex: "1 1 300px" } });
       sotto.append(el("div", { class: "pannello", style: { flex: "1 1 360px" } }, el("h3", {}, "Pista ricostruita (senza GPS)"),
-        el("div", { class: "nota" }, "Forma ottenuta integrando la direzione: g·tan(piega)/v. Il punto è la posizione al cursore; il colore della traccia segue gli interventi previsti."),
-        this.mappa), this.valori);
+        el("div", { class: "nota" }, "Forma ottenuta integrando la direzione: g·tan(piega)/v. Il punto è la posizione al cursore; il colore della traccia segue gli interventi previsti. Curve numerate dal traguardo: clic sull'etichetta per darle il nome, clic sulla pista per portare lì il cursore."),
+        this.mappa, this.editorCurve()), this.valori);
       destra.append(grafici, sotto);
       radice.append(el("div", { class: "griglia2" }, elenco, destra));
       const disegnaGrafici = () => {
@@ -118,7 +139,49 @@
       ctx.fillRect(lx - 1, ly - 9, 3, 18);
       ctx.font = "11px system-ui";
       ctx.fillText("traguardo stimato", lx + 6, ly - 6);
+      // curve: etichetta all'apice, spinta verso l'esterno della pista
+      let cx = 0, cy = 0;
+      for (const q of P) { const [a, b] = this.trasf(...q); cx += a; cy += b; }
+      cx /= P.length; cy /= P.length;
+      this.etichette = [];
+      ctx.font = "600 11px system-ui";
+      for (const c of DV.curve()) {
+        const k = Math.min(P.length - 1, Math.round(c.apice / G.mappa_ds));
+        const [ax, ay] = this.trasf(...P[k]);
+        let dx = ax - cx, dy = ay - cy;
+        const nn = Math.hypot(dx, dy) || 1;
+        dx /= nn; dy /= nn;
+        const tx = ax + dx * 16, ty = ay + dy * 16;
+        const testo = DV.nomeCurva(c);
+        const tw = ctx.measureText(testo).width;
+        const bx = tx - (dx < 0 ? tw : 0), by = ty + 4;
+        ctx.fillStyle = DV.colore("--testo-2");
+        ctx.beginPath(); ctx.arc(ax, ay, 2.5, 0, 7); ctx.fill();
+        ctx.fillText(testo, bx, by);
+        this.etichette.push({ c, x: bx - 3, y: by - 12, w: tw + 6, h: 16, ax, ay });
+      }
       this.sfondo = ctx.getImageData(0, 0, cv.width, cv.height);
+    },
+    editorCurve() {
+      const C = DV.curve();
+      if (!C.length) return null;
+      const box = el("details", { style: { marginTop: "6px" } }, el("summary", { class: "nota" }, `Curve (${C.length})`));
+      const tab = el("table", { class: "dati" }, el("thead", {}, el("tr", {}, el("th", {}, "curva"), el("th", {}, "nome"), el("th", {}, "verso"), el("th", { class: "n" }, "apice m"), el("th", { class: "n" }, "piega max °"), el("th", { class: "n" }, "v min km/h"))));
+      const corpo = el("tbody");
+      for (const c of C) {
+        const inp = el("input", { type: "text", value: DV.nomiCurve()[c.id] || c.nome || "", placeholder: "es. Curva Grande", style: { width: "140px" } });
+        inp.addEventListener("change", () => DV.salvaNomeCurva(c.id, inp.value.trim()));
+        corpo.append(el("tr", {}, el("td", {}, c.id), el("td", {}, inp), el("td", {}, c.verso || ""), el("td", { class: "n" }, c.apice.toFixed(0)), el("td", { class: "n" }, c.piega_max === null ? "–" : c.piega_max.toFixed(0)), el("td", { class: "n" }, c.v_min.toFixed(0))));
+      }
+      tab.append(corpo);
+      const copia = el("button", { class: "bottone" }, "copia i nomi per il profilo");
+      copia.addEventListener("click", async () => {
+        const n = DV.curve().map((c) => DV.nomiCurve()[c.id] || c.nome || "");
+        const testo = JSON.stringify({ curve: { nomi: n } }, null, 1);
+        try { await navigator.clipboard.writeText(testo); DV.avviso("copiato: incollalo nel profilo della moto (voce \"curve\")"); } catch (e) { prompt("Copia e incolla nel profilo:", testo); }
+      });
+      box.append(tab, el("div", { class: "strumenti" }, copia, el("span", { class: "nota" }, "I nomi restano in questo browser; nel profilo valgono per tutti i PC.")));
+      return box;
     },
     cursore() {
       if (!S.sess || !this.valori) return;
@@ -134,6 +197,18 @@
           const [x, y] = this.trasf(...G.mappa_xy[k]);
           const dpr = devicePixelRatio || 1;
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          // curva in cui si trova la moto: tratto evidenziato ed etichetta in grassetto
+          const q = DV.curvaDi();
+          if (q && q.c) {
+            const P = G.mappa_xy, a = Math.round(q.c.inizio / G.mappa_ds), b = Math.min(P.length - 1, Math.round(q.c.fine / G.mappa_ds));
+            ctx.strokeStyle = DV.colore("--s1"); ctx.lineWidth = 9; ctx.lineCap = "round"; ctx.globalAlpha = 0.45;
+            ctx.beginPath();
+            for (let j = a; j <= b; j++) { const [px, py] = this.trasf(...P[j]); j === a ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            const e = (this.etichette || []).find((x2) => x2.c.id === q.c.id);
+            if (e) { ctx.font = "700 12px system-ui"; ctx.fillStyle = DV.colore("--s1"); ctx.fillText(DV.nomeCurva(q.c), e.x + 3, e.y + 12); }
+          }
           ctx.beginPath();
           ctx.arc(x, y, 7, 0, Math.PI * 2);
           ctx.fillStyle = DV.colore("--s1");

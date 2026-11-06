@@ -65,6 +65,7 @@ class Risultato:
     mappa_ds: float = 2.0
     linea_s_modello: float = 0.0
     note: list = field(default_factory=list)
+    curve: list = field(default_factory=list)   # curve del giro modello, distanze dal traguardo
 
     def dict(self):
         return {
@@ -73,6 +74,7 @@ class Risultato:
             "stint": self.stint,
             "mappa_ds": self.mappa_ds,
             "mappa_xy": None if self.mappa_xy is None else np.round(self.mappa_xy, 2).tolist(),
+            "curve": self.curve,
             "note": self.note,
         }
 
@@ -275,9 +277,77 @@ def mappa_pista(L, ds, v_mod, piega_mod=None, imbardata_mod=None):
     return np.stack([x, y], axis=1)
 
 
+def trova_curve(ds, v_mod, piega_mod=None, soglia=12.0, unisci_m=40.0, min_m=25.0, piega_positiva="destra", nomi=None):
+    """Curve del giro modello, numerate dal traguardo (T1, T2, ...).
+
+    Con la piega: tratti in cui |piega| supera la soglia, con lo stesso verso (una esse = due curve);
+    inizio e fine dove la piega scende sotto metà soglia; apice = piega massima.
+    Senza piega: minimi di velocità con almeno 15 km/h di calo e di ripresa.
+    nomi: lista nell'ordine dal traguardo oppure {"T1": "Curva Grande", ...}."""
+    v = np.asarray(v_mod, dtype=float)
+    n = len(v)
+
+    def nome(k):
+        if isinstance(nomi, dict):
+            return nomi.get(f"T{k + 1}", "")
+        return nomi[k] if nomi and k < len(nomi) else ""
+    out = []
+    if piega_mod is not None:
+        p = _liscia(np.nan_to_num(np.asarray(piega_mod, dtype=float)), max(3, int(10 / ds)))
+        on = np.abs(p) > soglia
+        sg = np.sign(p)
+        tratti = []
+        i = 0
+        while i < n:
+            if on[i]:
+                j = i
+                while j < n and on[j] and sg[j] == sg[i]:
+                    j += 1
+                tratti.append([i, j, sg[i]])
+                i = j
+            else:
+                i += 1
+        uniti = []
+        for t in tratti:
+            if uniti and t[2] == uniti[-1][2] and (t[0] - uniti[-1][1]) * ds < unisci_m:
+                uniti[-1][1] = t[1]
+            else:
+                uniti.append(t)
+        uniti = [t for t in uniti if (t[1] - t[0]) * ds >= min_m]
+        for k, (a, b, segno) in enumerate(uniti):
+            ia = a + int(np.argmax(np.abs(p[a:b])))
+            a2, b2 = a, b
+            while a2 > 0 and abs(p[a2 - 1]) > soglia * 0.5 and np.sign(p[a2 - 1]) == segno:
+                a2 -= 1
+            while b2 < n and abs(p[b2]) > soglia * 0.5 and np.sign(p[b2]) == segno:
+                b2 += 1
+            verso = "destra" if (segno > 0) == (piega_positiva == "destra") else "sinistra"
+            out.append({"id": f"T{k + 1}", "nome": nome(k), "inizio": round(a2 * ds, 1), "apice": round(ia * ds, 1),
+                        "fine": round(b2 * ds, 1), "verso": verso, "piega_max": round(float(abs(p[ia])), 1),
+                        "v_apice": round(float(v[ia]), 1), "v_min": round(float(v[a2:b2].min()), 1)})
+    else:
+        vs = _liscia(v, max(3, int(20 / ds)))
+        minimi = [i for i in range(1, n - 1) if vs[i] <= vs[i - 1] and vs[i] < vs[i + 1]]
+        k = 0
+        for i in minimi:
+            prima = vs[max(0, i - int(300 / ds)): i + 1]
+            dopo = vs[i: i + int(300 / ds)]
+            if prima.max() - vs[i] < 15 or dopo.max() - vs[i] < 15:
+                continue
+            a = max(0, i - int(np.argmax(prima[::-1] >= vs[i] + 0.7 * (prima.max() - vs[i]))))
+            b = min(n - 1, i + int(np.argmax(dopo >= vs[i] + 0.7 * (dopo.max() - vs[i]))))
+            if out and a * ds < out[-1]["fine"]:
+                continue
+            out.append({"id": f"T{k + 1}", "nome": nome(k), "inizio": round(a * ds, 1), "apice": round(i * ds, 1),
+                        "fine": round(b * ds, 1), "verso": "", "piega_max": None, "v_apice": round(float(v[i]), 1),
+                        "v_min": round(float(v[i]), 1)})
+            k += 1
+    return out
+
+
 def stima_giri(t, v_kmh, piega=None, imbardata=None, lunghezza_nominale=None,
                linea="vmax", linea_offset_m=0.0, t_traguardo=None, ds=2.0,
-               soglia_qualita=0.55, peso_curvatura=0.8) -> Risultato:
+               soglia_qualita=0.55, peso_curvatura=0.8, curve_opz=None) -> Risultato:
     """Stima i giri.
 
     t: tempi (s); v_kmh: velocità di riferimento; piega: angolo di piega con segno (gradi) se disponibile.
@@ -339,7 +409,7 @@ def stima_giri(t, v_kmh, piega=None, imbardata=None, lunghezza_nominale=None,
         centro = len(g_all) // 2
         i0 = max(0, min(centro - nL // 2, len(g_all) - nL))
         mod = F_all[:, i0: i0 + nL]
-        s_mod0 = g_all[i0]
+        partenze = [g_all[i0]]
         # affina il modello mediando i giri allineati (2 passate)
         for _ in range(2):
             r = _ncc(F_all, mod)
@@ -347,18 +417,26 @@ def stima_giri(t, v_kmh, piega=None, imbardata=None, lunghezza_nominale=None,
             pezzi = [F_all[:, p: p + nL] for p in pk if p + nL <= F_all.shape[1]]
             if len(pezzi) >= 2:
                 mod = np.median(np.array(pezzi), axis=0)
-                s_mod0 = g_all[pk[0]]
+                partenze = [g_all[p] for p in pk if p + nL <= F_all.shape[1]]
     else:
         mod = F_all
-        s_mod0 = g_all[0]
+        partenze = [g_all[0]]
         note.append("stint più corto di un giro: modello parziale")
     nL = mod.shape[1]
 
-    # profilo velocità e piega del modello in unità fisiche (per scegliere la linea e la mappa)
-    gm = s_mod0 + np.arange(nL) * ds
-    v_mod = np.interp(gm, s, v)
-    p_mod = np.interp(gm, s, piega) if piega is not None else None
-    y_mod = np.interp(gm, s, imbardata) if imbardata is not None else None
+    # profilo velocità e piega del modello in unità fisiche (linea, mappa, curve): mediana dei giri allineati,
+    # senza il primo e l'ultimo (uscita e rientro dai box, più lenti) quando i giri sono abbastanza
+    if len(partenze) >= 4:
+        partenze = partenze[1:-1]
+    s_mod0 = partenze[0]
+
+    def _mediana(x):
+        if x is None:
+            return None
+        return np.median(np.array([np.interp(p0 + np.arange(nL) * ds, s, x) for p0 in partenze]), axis=0)
+    v_mod = _mediana(v)
+    p_mod = _mediana(piega)
+    y_mod = _mediana(imbardata)
 
     # --- 3. posizione della linea nel modello
     if t_traguardo is not None:
@@ -428,4 +506,8 @@ def stima_giri(t, v_kmh, piega=None, imbardata=None, lunghezza_nominale=None,
     mappa = mappa_pista(L, ds, v_mod_r, p_mod_r, y_mod_r)
     if mappa is None:
         note.append("mappa pista non ricostruibile: serve l'angolo di piega o l'imbardata")
-    return Risultato(L, giri, stint_info, s, s_giro, n_giro, mappa, ds, 0.0, note)
+    co = curve_opz or {}
+    curve = trova_curve(ds, v_mod_r, p_mod_r, soglia=co.get("soglia_piega", 12.0), piega_positiva=co.get("piega_positiva", "destra"),
+                        nomi=co.get("nomi"))
+    note.append(f"{len(curve)} curve riconosciute nel giro modello" + ("" if p_mod_r is not None else " (dai minimi di velocità: senza piega)"))
+    return Risultato(L, giri, stint_info, s, s_giro, n_giro, mappa, ds, 0.0, note, curve)

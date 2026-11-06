@@ -81,6 +81,22 @@ class ProvaGiri(unittest.TestCase):
         self.assertLess(errori.max(), 0.02, f"errori {errori}")
 
 
+class ProvaCurve(unittest.TestCase):
+    def test_curve_dalla_piega_e_dalla_velocita(self):
+        sim = synth.simula()
+        v = laps.correggi_piega(sim["v_ant"], sim["piega"], 299.9, 60)
+        r = laps.stima_giri(sim["t"], v, piega=sim["piega"], curve_opz={"piega_positiva": "sinistra", "nomi": ["Prima"]})
+        self.assertGreaterEqual(len(r.curve), 8)
+        self.assertEqual(r.curve[0]["nome"], "Prima")
+        apici = [c["apice"] for c in r.curve]
+        self.assertEqual(apici, sorted(apici))
+        self.assertTrue(all(c["inizio"] <= c["apice"] <= c["fine"] for c in r.curve))
+        self.assertTrue(all(c["piega_max"] > 45 for c in r.curve))      # giri lanciati, non quello di uscita
+        self.assertEqual({c["verso"] for c in r.curve}, {"destra", "sinistra"})
+        r2 = laps.stima_giri(sim["t"], v)                                  # senza piega: dai minimi di velocità
+        self.assertLessEqual(abs(len(r2.curve) - len(r.curve)), 1)
+
+
 class ProvaCalibrazione(unittest.TestCase):
     def setUp(self):
         self.S = calib.risolvi(synth.struttura_demo(), "NOSLICK")

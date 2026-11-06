@@ -287,6 +287,48 @@
   };
   DV.tRel = (tAss) => tAss - (S.sess.meta.t0_assoluto || 0);
 
+  // ---------------------------------------------------------------- curve (dal giro modello, distanze dal traguardo)
+  const chiaveNomi = () => "dv-curve-" + Math.round((S.sess && S.sess.giri && S.sess.giri.lunghezza_giro) || 0);
+  DV.nomiCurve = () => { try { return JSON.parse(localStorage.getItem(chiaveNomi()) || "{}"); } catch (e) { return {}; } };
+  DV.salvaNomeCurva = (id, nome) => {
+    const n = DV.nomiCurve();
+    if (nome) n[id] = nome; else delete n[id];
+    try { localStorage.setItem(chiaveNomi(), JSON.stringify(n)); } catch (e) { /* senza memoria locale */ }
+    DV.emit("curve");
+  };
+  DV.curve = () => ((S.sess && S.sess.giri && S.sess.giri.curve) || []);
+  DV.nomeCurva = (c) => { const n = DV.nomiCurve()[c.id] || c.nome; return n ? `${c.id} ${n}` : c.id; };
+  // dove sono: curva (con fase) o rettilineo verso la prossima
+  DV.curvaDi = (i = S.i) => {
+    const s = DV.valore("s_giro", i);
+    const C = DV.curve();
+    if (!Number.isFinite(s) || !C.length) return null;
+    const L = S.sess.giri.lunghezza_giro;
+    for (const c of C) if (s >= c.inizio && s <= c.fine) return { c, s, fase: s < c.apice ? "ingresso" : "uscita", alApice: c.apice - s };
+    const dopo = C.find((c) => c.inizio > s) || C[0];
+    const fra = dopo.inizio > s ? dopo.inizio - s : dopo.inizio + L - s;
+    return { c: null, s, prossima: dopo, fra };
+  };
+  // istanti di passaggio all'apice di ogni curva, giro per giro (per le etichette sui grafici nel tempo)
+  let apiciCache = null;
+  DV.on("sessione", () => (apiciCache = null));
+  DV.apiciTempo = () => {
+    if (apiciCache) return apiciCache;
+    const out = [], sg = DV.canale("s_giro"), ng = DV.canale("n_giro"), C = DV.curve();
+    if (!sg || !ng || !C.length) return (apiciCache = out);
+    for (let i = 1; i < S.n; i++) {
+      if (ng.dati[i] < 0 || ng.dati[i] !== ng.dati[i - 1]) continue;
+      for (const c of C) if (sg.dati[i - 1] < c.apice && sg.dati[i] >= c.apice) out.push({ i, c });
+    }
+    return (apiciCache = out);
+  };
+  DV.testoCurva = (i = S.i) => {
+    const q = DV.curvaDi(i);
+    if (!q) return "";
+    if (q.c) return `${DV.nomeCurva(q.c)}${q.c.verso ? " " + q.c.verso : ""} · ${q.fase}${q.fase === "ingresso" ? `, apice fra ${q.alApice.toFixed(0)} m` : ""}`;
+    return `rettilineo → ${DV.nomeCurva(q.prossima)} fra ${q.fra.toFixed(0)} m`;
+  };
+
   DV.scarica = (nome, dati, tipo = "application/octet-stream") => {
     const url = URL.createObjectURL(new Blob([dati], { type: tipo }));
     const a = DV.el("a", { href: url, download: nome });
