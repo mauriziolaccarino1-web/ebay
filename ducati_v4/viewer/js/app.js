@@ -248,15 +248,17 @@
   });
 
   // ---------------------------------------------------------------- tema
-  $("#tema").addEventListener("click", () => {
+  // tema: automatico (segue il sistema), chiaro o scuro; la scelta resta in questo browser
+  function applicaTema(t, ridisegna = true) {
     const r = document.documentElement;
-    const scuro = r.dataset.theme ? r.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-    r.dataset.theme = scuro ? "light" : "dark";
-    try { localStorage.setItem("dv-tema", r.dataset.theme); } catch (e) { /* niente */ }
-    sporca();
-    disegnaTimeline();
-  });
-  try { const t = localStorage.getItem("dv-tema"); if (t) document.documentElement.dataset.theme = t; } catch (e) { /* niente */ }
+    if (t) r.dataset.theme = t; else delete r.dataset.theme;
+    $("#tema").value = t || "";
+    try { if (t) localStorage.setItem("dv-tema", t); else localStorage.removeItem("dv-tema"); } catch (e) { /* senza memoria locale */ }
+    if (ridisegna) { sporca(); disegnaTimeline(); }
+  }
+  $("#tema").addEventListener("change", (e) => applicaTema(e.target.value));
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (!document.documentElement.dataset.theme) { sporca(); disegnaTimeline(); } });
+  try { applicaTema(localStorage.getItem("dv-tema") || "", false); } catch (e) { /* niente */ }
 
   // tooltip generico
   DV.tooltip = (e, html) => {

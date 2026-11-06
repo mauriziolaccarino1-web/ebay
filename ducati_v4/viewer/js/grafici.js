@@ -165,7 +165,13 @@
     const k = Math.max(0, Math.min(6, Math.round(f * 6)));
     return DV.colore(`--seq-${k}`);
   };
-  DV.inkSu = (f) => (f > 0.55 ? "#ffffff" : "");
+  DV.scuro = () => {
+    const t = document.documentElement.dataset.theme;
+    return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  };
+  // colore del testo sopra una cella della scala sequenziale: nel chiaro le celle alte sono scure (testo bianco),
+  // nello scuro le celle alte sono chiare (testo nero)
+  DV.inkSu = (f) => (f > 0.55 ? (DV.scuro() ? "#0b0b0b" : "#ffffff") : "");
   function mescola(a, b, f) {
     const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
     const c = [16, 8, 0].map((s) => Math.round(((pa >> s) & 255) * (1 - f) + ((pb >> s) & 255) * f));

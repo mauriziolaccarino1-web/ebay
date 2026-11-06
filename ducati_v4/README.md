@@ -144,6 +144,9 @@ istante noto di passaggio, per esempio dal video). Dalla stessa firma si ricostr
 
 `py -m dvtool visualizza <cartella>` serve la cartella (con `progetto.json`) solo su 127.0.0.1. In alternativa
 puoi aprire `viewer/index.html` direttamente e trascinare i file: sessione `.json.gz`, struttura, modello e `.bin`.
+In alto a destra si sceglie il tema: **automatico** (segue il sistema), **chiaro** o **scuro**. La scelta resta salvata in
+quel browser e vale per tutte le schede, compreso lo schema del software; l'SVG scaricato è sempre chiaro.
+
 La linea del tempo in basso, le frecce (Maiusc = 1 s) e la barra spaziatrice muovono il cursore, che è comune a
 tutte le schede. In alto scegli il giro, i parametri del modello (per esempio il livello) e le due mappe:
 

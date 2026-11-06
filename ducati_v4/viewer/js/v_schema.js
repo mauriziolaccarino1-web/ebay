@@ -157,8 +157,9 @@
   .nodo2 .val { font-size: 11.5px; font-weight: 600; fill: var(--sch-testo, #1f2937); font-variant-numeric: tabular-nums; }
   .nodo2 .val2 { font-size: 10.5px; fill: var(--sch-sotto, #475569); font-variant-numeric: tabular-nums; }
   .nodo2 .asse { font-family: Consolas, ui-monospace, monospace; font-size: 8.5px; fill: var(--sch-sotto, #6b7280); }
-  .nodo2 .num { font-family: Consolas, ui-monospace, monospace; font-size: 7.5px; fill: #1f2937; pointer-events: none; }
+  .nodo2 .num { font-family: Consolas, ui-monospace, monospace; font-size: 7.5px; fill: var(--sch-testo, #1f2937); pointer-events: none; }
   .nodo2 .num.chiaro { fill: #fff; }
+  .nodo2 .num.nero { fill: #0b0b0b; }
   .nodo2 .barra-fondo { fill: var(--sch-barra, #e5e7eb); }
   .nodo2 .barra-soglia { fill: var(--sch-testo, #0f172a); }
   .cella-wp { fill: #ea580c; fill-opacity: calc(0.25 + var(--w, 0) * 0.7); stroke: var(--sch-testo, #0f172a); stroke-width: 1.6; pointer-events: none; }
@@ -304,7 +305,7 @@
             const q = mx > mn ? (T.z[i][j] - mn) / (mx - mn) : 0;
             const c = crea("rect", { x: x0 + j * cw, y: y0 + i * ch, width: cw - 1, height: ch - 1, rx: 1.5, fill: DV.seq(q), class: "cella" }, g);
             const ti = crea("title", {}, c); ti.textContent = `${T.y ? `${T.y.unita} ${DV.fmt(T.y.valori[i])} · ` : ""}${T.x ? `${T.x.unita} ${DV.fmt(T.x.valori[j])}` : ""} → ${T.z[i][j].toFixed(dec)} ${n.tab.unita || ""}`;
-            if (numeri) testo(g, x0 + j * cw + cw / 2, y0 + i * ch + ch - 3.5, T.z[i][j].toFixed(dec), "num" + (q > 0.55 ? " chiaro" : ""), { "text-anchor": "middle" });
+            if (numeri) testo(g, x0 + j * cw + cw / 2, y0 + i * ch + ch - 3.5, T.z[i][j].toFixed(dec), "num" + (q > 0.55 ? (DV.scuro() ? " nero" : " chiaro") : ""), { "text-anchor": "middle" });
             riga.push(c);
           }
           out.celle.push(riga);
