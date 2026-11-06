@@ -1,0 +1,9 @@
+privato/*
+!privato/LEGGIMI.md
+esempi/demo/
+__pycache__/
+*.pyc
+*.r9session
+*.candump
+*.ORI
+*.ori

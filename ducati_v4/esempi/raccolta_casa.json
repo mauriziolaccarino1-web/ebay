@@ -1,0 +1,20 @@
+{
+ "_istruzioni": "Sul PC di CASA:  py -m dvtool pacchetto crea --raccolta esempi\\raccolta_casa.json --out ducati_v4_trasferimento.zip   poi porta lo zip sul PC di lavoro (chiavetta/OneDrive) e lì:  py -m dvtool pacchetto apri ducati_v4_trasferimento.zip --in privato . Percorsi presi dalle sessioni precedenti: controlla che esistano. Le voci non trovate vengono elencate e saltate.",
+ "voci": [
+  {"da": "%USERPROFILE%/Desktop/claude/filippo/SFV4_23/can/*", "in": "can"},
+  {"da": "%USERPROFILE%/Desktop/claude/filippo/ducati/*.ORI", "in": "calibrazioni"},
+  {"da": "%USERPROFILE%/Desktop/claude/filippo/ducati/*.ori", "in": "calibrazioni"},
+  {"da": "%USERPROFILE%/Desktop/claude/filippo/ducati/*.bin", "in": "calibrazioni"},
+  {"da": "%USERPROFILE%/Desktop/claude/filippo/ducati/**/*.md", "in": "decodifica"},
+  {"da": "%USERPROFILE%/Desktop/claude/filippo/ducati/**/*.html", "in": "decodifica"},
+  {"da": "%USERPROFILE%/Desktop/claude/filippo/ducati/**/*.pdf", "in": "decodifica"},
+  {"da": "%USERPROFILE%/Desktop/claude/filippo/ducati/**/*.json", "in": "decodifica"},
+  {"da": "%USERPROFILE%/Desktop/claude/filippo/ducati/**/*.csv", "in": "decodifica"},
+  {"da": "%USERPROFILE%/Desktop/claude/filippo/ducati/tools", "in": "decodifica"},
+  {"da": "D:/h3d_note/sfv4_2023/*.md", "in": "sfv4_2023"},
+  {"da": "D:/h3d_note/sfv4_2023/*.sh", "in": "sfv4_2023"},
+  {"da": "D:/h3d_note/sfv4_2023/analisi", "in": "sfv4_2023"},
+  {"da": "D:/h3d_note/sfv4_2023/catture/*.log", "in": "acquisizioni/sfv4_2023"},
+  {"da": "D:/h3d_worktrees/yccu-peer-sfv4/tools/sfv4_cattura.py", "in": "strumenti"}
+ ]
+}

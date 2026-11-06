@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analisi controllo in piega</title>
+<link rel="stylesheet" href="lib/uPlot.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="barra">
+  <div class="titolo">Analisi controllo in piega <span id="nome-progetto" class="tenue"></span></div>
+  <label class="bottone primario" title="Sessione (.json/.json.gz), struttura, modello, file .bin, patch">
+    Apri file…<input id="file" type="file" multiple hidden>
+  </label>
+  <select id="sessioni" hidden title="Sessioni del progetto"></select>
+  <select id="giro" title="Giro da mostrare"><option value="">tutta la sessione</option></select>
+  <span id="parametri"></span>
+  <span id="stato-cal" class="tenue"></span>
+  <button id="tema" class="bottone" title="Tema chiaro/scuro">◐</button>
+</header>
+<nav class="schede" id="schede">
+  <button data-vista="acquisizione" class="attiva">Acquisizione</button>
+  <button data-vista="criteri">Criteri e rami</button>
+  <button data-vista="flusso">Flusso dati</button>
+  <button data-vista="mappe">Mappe</button>
+  <button data-vista="pneumatico">Profilo pneumatico</button>
+  <button data-vista="giri">Giri</button>
+  <button data-vista="protocollo">Protocollo CAN</button>
+</nav>
+<main id="viste">
+  <section id="v-acquisizione" class="vista attiva"></section>
+  <section id="v-criteri" class="vista"></section>
+  <section id="v-flusso" class="vista"></section>
+  <section id="v-mappe" class="vista"></section>
+  <section id="v-pneumatico" class="vista"></section>
+  <section id="v-giri" class="vista"></section>
+  <section id="v-protocollo" class="vista"></section>
+  <div id="vuoto" class="vuoto">
+    <h2>Nessun dato caricato</h2>
+    <p>Trascina qui i file (o usa <b>Apri file…</b>): la sessione <code>.json.gz</code> creata da
+      <code>python -m dvtool sessione</code>, la <b>struttura</b> delle tabelle, il <b>modello</b> della catena di controllo
+      e il file <b>.bin</b> della centralina (originale e, se c'è, modificato).</p>
+    <p>Per provare senza moto: <code>python -m dvtool demo --apri</code></p>
+  </div>
+</main>
+<footer class="linea-tempo">
+  <div class="comandi">
+    <button id="indietro" class="bottone" title="Indietro (←, Maiusc+← = 1 s)">◀</button>
+    <button id="play" class="bottone" title="Riproduci (spazio)">▶</button>
+    <button id="avanti" class="bottone" title="Avanti (→)">▶|</button>
+    <select id="velocita" title="Velocità di riproduzione"><option>0.25</option><option>0.5</option><option selected>1</option><option>2</option><option>5</option><option>10</option></select>
+    <span id="ora" class="numeri"></span>
+  </div>
+  <canvas id="timeline" height="56"></canvas>
+</footer>
+<div id="avvisi"></div>
+<div id="tooltip" class="tooltip" hidden></div>
+<script src="lib/uPlot.iife.min.js"></script>
+<script src="js/espr.js"></script>
+<script src="js/calib.js"></script>
+<script src="js/modello.js"></script>
+<script src="js/core.js"></script>
+<script src="js/grafici.js"></script>
+<script src="js/v_acquisizione.js"></script>
+<script src="js/v_criteri.js"></script>
+<script src="js/v_flusso.js"></script>
+<script src="js/v_mappe.js"></script>
+<script src="js/v_pneumatico.js"></script>
+<script src="js/v_giri.js"></script>
+<script src="js/v_protocollo.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

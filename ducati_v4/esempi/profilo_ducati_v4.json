@@ -1,0 +1,30 @@
+{
+ "_nota": "Profilo per Panigale V4 2025 con il protocollo della Streetfighter V4/V4S 2023 (ipotesi: stesso layout). verificato = come stava il segnale dopo la prova SFV4 del 31/10/2026. Il DBC non è nel repository: va in privato/can/.",
+ "moto": "Ducati Panigale V4 2025 (protocollo SFV4 2023)",
+ "dbc": "../privato/can/SFV4_bus_practical.dbc",
+ "pista": null,
+ "linea": "vmax",
+ "linea_offset_m": 0,
+ "pneumatico_ant": {"misura": "120/70 ZR17", "R0_mm": 299.9, "r_corona_mm": 60.0, "_nota": "raggio corona da verificare"},
+ "pneumatico_post": {"misura": "200/60 ZR17", "R0_mm": 335.9, "_nota": "misura della 2025 da verificare sulla moto"},
+ "extra": "*",
+ "canali": {
+  "v_ant":       {"segnale": "RX_WheelSpeed_018.WheelSpeedFront", "unita": "km/h", "nome": "velocità ruota anteriore", "min": 0, "max": 400, "verificato": "no (non provato)"},
+  "v_post":      {"segnale": "RX_WheelSpeed_018.WheelSpeedRear",  "unita": "km/h", "nome": "velocità ruota posteriore", "min": 0, "max": 400, "verificato": "no (non provato)"},
+  "piega":       {"segnale": "RX_IMU_Angles_188.LeanAngle", "unita": "deg", "nome": "angolo di piega", "min": -75, "max": 75, "verificato": "parziale (-1.7 sul cavalletto)"},
+  "giri":        {"segnale": "ECU_EngineStatus1_024.EngineSpeed", "unita": "rpm", "nome": "giri motore", "min": 0, "max": 17000, "verificato": "sì"},
+  "gas":         {"segnale": "ECU_EngineStatus1_024.TwistGrip", "unita": "%", "nome": "comando gas", "min": 0, "max": 100, "verificato": "sì"},
+  "marcia":      {"segnale": "ECU_EngineStatus1_024.Gear", "unita": "", "nome": "marcia", "min": 0, "max": 6, "verificato": "sì (7 = avvio, scartato)"},
+  "farfalla":    {"segnale": "ECU_Throttle_100.TPS_Vert", "unita": "deg", "nome": "farfalle", "verificato": "sì (unità incerta)"},
+  "freno_ant":   {"segnale": "RX_ABS_022.BrakeFront", "unita": "%", "nome": "freno anteriore", "verificato": "sì"},
+  "dtc_livello": {"segnale": "RX_WheelSpeed_018.DTC_Lv", "unita": "", "nome": "livello DTC", "verificato": "sì"},
+  "dwc_livello": {"segnale": "RX_WheelSpeed_018.DWC_Lv", "unita": "", "nome": "livello DWC", "verificato": "sì"},
+  "dsc_livello": {"segnale": "RX_WheelSpeed_018.DSC_Lv", "unita": "", "nome": "livello DSC", "verificato": "sì"},
+  "trq_slow":    {"segnale": "RX_TorqueRequest_019.TrqSlow", "unita": "%", "nome": "riduzione coppia lenta (candidata)", "verificato": "no (non provato)"},
+  "trq_fast":    {"segnale": "RX_TorqueRequest_019.TrqFast", "unita": "%", "nome": "riduzione coppia veloce (candidata)", "verificato": "no (non provato)"},
+  "coppia_rich": {"segnale": "RX_TorqueRequest_019.TorqueReq_A", "unita": "Nm", "nome": "coppia richiesta", "verificato": "scala ipotizzata"},
+  "modo_motore": {"segnale": "ECU_EngineStatus2_080.EngPowerMode", "unita": "", "nome": "riding mode (0 Race, 1 Sport, 2 Road)", "verificato": "sì"},
+  "rollio":      {"segnale": "IMU_174.Roll_Rate", "unita": "deg/s", "nome": "velocità di rollio", "verificato": "no"},
+  "odometro":    {"segnale": "RX_DashOdo_620.Odometer", "unita": "km", "nome": "odometro", "verificato": "sì"}
+ }
+}
