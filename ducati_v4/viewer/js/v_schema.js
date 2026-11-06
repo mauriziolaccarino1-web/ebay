@@ -86,7 +86,7 @@
     for (const n of nodi.values()) {
       n.corsia = corsiaDi(n);
       n.w = STILE.blocco.w; n.h = STILE.blocco.h;
-      if (n.tipo === "criterio") n.h = 78;
+      if (n.tipo === "criterio") n.h = 90;
       if (n.def && n.def.tipo === "tabella") {
         const nome = DV.modello.nomeTabella(n.def.tabella, S.parametri);
         const tab = S.struttura && S.struttura.tabelle.find((t) => t.id === nome);
@@ -282,10 +282,11 @@
       const val = testo(g, 9, n.h - 12, "", "val");
       const out = { g, rc, val, col };
       if (n.tipo === "criterio") {
-        crea("rect", { x: 9, y: H + 10, width: n.w - 18, height: 8, rx: 3, class: "barra-fondo" }, g);
-        out.barra = crea("rect", { x: 9, y: H + 10, width: 0, height: 8, rx: 3, fill: col }, g);
-        out.soglia = crea("rect", { x: 9, y: H + 6, width: 2, height: 16, class: "barra-soglia" }, g);
-        out.sub = testo(g, 9, n.h - 26, "", "val2");
+        crea("rect", { x: 9, y: H + 7, width: n.w - 18, height: 8, rx: 3, class: "barra-fondo" }, g);
+        out.barra = crea("rect", { x: 9, y: H + 7, width: 0, height: 8, rx: 3, fill: col }, g);
+        out.soglia = crea("rect", { x: 9, y: H + 3, width: 2, height: 16, class: "barra-soglia" }, g);
+        out.sub = testo(g, 9, H + 31, "", "val2");
+        val.setAttribute("y", n.h - 9);
       }
       if (n.T) {
         const T = n.T, R = T.z.length, C = T.z[0].length, cw = STILE.cella.w, ch = STILE.cella.h;
