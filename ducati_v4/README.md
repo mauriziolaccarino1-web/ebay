@@ -1,4 +1,8 @@
-# ducati_v4 — analisi del controllo in piega (Panigale V4 2025, protocollo V4S)
+# ducati_v4 — analisi del controllo in piega (Panigale V4 R 2025, protocollo V4S)
+
+Moto: Ducati Panigale V4 R 2025. Il software analizzato è quello della **centralina dei controlli** (file Divac Pro,
+pensato per le slick), che chiede alla centralina motore la riduzione di coppia sul CAN (0x019 TrqSlow/TrqFast).
+Prima prova: Vallelunga (4085 m) con il cronometro R9 usato come registratore.
 
 Strumenti per:
 
@@ -10,6 +14,7 @@ Strumenti per:
 | verificare che la moto usi il protocollo della Streetfighter V4S | `dvtool can verifica` + scheda *Protocollo CAN* |
 | vedere quale ramo dei controlli lavora, dove è il punto attuale, quanto manca a ogni soglia (4 criteri) | visualizzatore, schede *Criteri e rami* e *Flusso dati* |
 | tracciare tutta la sequenza dei dati (CAN → ingressi → blocchi → criteri → rami → logica → uscita) | scheda *Flusso dati* |
+| per ogni ramo, quanto si è lontani dal trigger della derivata (di potenza) e dove nel giro ci si avvicina | scheda *Trigger per ramo* |
 | ripercorrere il giro vedendo, come in INCA, le lookup table lette dal programma con le celle su cui sta la moto e il ramo attivo | scheda *Tabelle dal vivo* |
 | scegliere la mappa di riferimento (NOSLICK, SLICK, …) e confrontarla con un'altra | selettori **A** / **B** in alto, `dvtool progetto --cal` |
 | vedere e modificare tabelle e curve, capire quale si sta usando e dove | scheda *Mappe* + `dvtool calib` |
@@ -111,7 +116,7 @@ Note:
 ```
 py -m dvtool can inventario privato\acquisizioni\cattura_XXXX.log
 py -m dvtool can verifica   privato\acquisizioni\cattura_XXXX.log --dbc privato\can\SFV4_bus_practical.dbc --profilo esempi\profilo_ducati_v4.json --out verifica.md
-py -m dvtool giri           privato\acquisizioni\cattura_XXXX.log --profilo esempi\profilo_ducati_v4.json --pista vallelunga
+py -m dvtool giri           privato\acquisizioni\cattura_XXXX.log --profilo esempi\profilo_ducati_v4.json   (pista: vallelunga nel profilo)
 py -m dvtool sessione       privato\acquisizioni\cattura_XXXX.log --profilo esempi\profilo_ducati_v4.json ^
                             --modello privato\modello.json --struttura privato\struttura.json ^
                             --bin NOSLICK=privato\calibrazioni\noslick.bin --out privato\sessione_1.json.gz
@@ -152,6 +157,7 @@ delle due era davvero montata (demo: NOSLICK 95%, SLICK 36%).
 
 - **Acquisizione**: canali nel tempo (stessa unità = stesso grafico), pista ricostruita con il punto attuale, interventi evidenziati.
 - **Criteri e rami**: per ognuno dei criteri valore, soglia, misuratore con isteresi e distanza dalla soglia (in unità e in % della soglia). Mostra i rami con i termini veri/falsi, cosa manca perché un ramo lavori, la logica e l'uscita. Confronta la previsione con ciò che la centralina ha fatto davvero (canale CAN osservato). Grafici della distanza normalizzata e statistiche per giro, originale → modificata.
+- **Trigger per ramo**: per ogni ramo una scheda con lo stato, la distanza del ramo intero dal suo trigger (il termine più lontano) e, per il criterio a derivata, valore, soglia, quanto manca e a che velocità ci si avvicina, con la stima del tempo al trigger. Sotto ci sono, per ramo, la distanza nel tempo, il minimo ogni 10 m lungo il giro (dove ci si avvicina, giro per giro) e una tabella per giro con scatti, durata e punto più vicino (clic = vai all'istante). Il criterio a derivata è quello con `"derivata": true` nel modello, oppure con un blocco «derivata» a monte del valore.
 - **Tabelle dal vivo** (stile INCA): una finestra per ogni lookup table letta dal programma dei controlli, con i parametri attuali (per esempio la soglia del livello 2). Mentre ripercorri il giro (▶, frecce, trascinando la linea del tempo) mostra:
   - le 4 celle che la centralina sta interpolando, colorate in proporzione al peso;
   - i valori d'asse evidenziati e il mirino sul punto esatto;

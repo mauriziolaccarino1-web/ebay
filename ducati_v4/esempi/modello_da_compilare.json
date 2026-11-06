@@ -7,40 +7,159 @@
   "criteri: valore 'confronto' soglia (> >= < <=), isteresi facoltativa: è ciò che il visualizzatore mostra come distanza dalla soglia.",
   "rami: ogni ramo è una condizione sui criteri; logica = come i rami portano all'intervento.",
   "osservati: canali CAN che dicono cosa ha fatto davvero la centralina (es. trq_fast > 0), per misurare quanto il modello concorda.",
-  "Le formule qui sotto sono SEGNAPOSTO: sostituiscile con la catena decodificata."
+  "Le formule qui sotto sono SEGNAPOSTO: sostituiscile con la catena decodificata.",
+  "Il criterio sulla derivata (es. derivata di potenza) va segnato con \"derivata\": true: la scheda Trigger per ramo mostra per ogni ramo quanto manca a quel trigger. Se ogni ramo ha la sua soglia di derivata, fai un criterio per ramo (C4a, C4b...) e mettilo nella condizione del suo ramo."
  ],
  "nome": "Panigale V4 2025 – controllo in piega (da compilare)",
  "frequenza_hz": 100,
- "parametri": {"livello": 2},
+ "parametri": {
+  "livello": 2
+ },
  "ingressi": [
-  {"id": "v_ant", "segnale": "v_ant", "unita": "km/h"},
-  {"id": "v_post", "segnale": "v_post", "unita": "km/h"},
-  {"id": "piega", "segnale": "piega", "unita": "deg"},
-  {"id": "giri", "segnale": "giri", "unita": "rpm"},
-  {"id": "gas", "segnale": "gas", "unita": "%"}
+  {
+   "id": "v_ant",
+   "segnale": "v_ant",
+   "unita": "km/h"
+  },
+  {
+   "id": "v_post",
+   "segnale": "v_post",
+   "unita": "km/h"
+  },
+  {
+   "id": "piega",
+   "segnale": "piega",
+   "unita": "deg"
+  },
+  {
+   "id": "giri",
+   "segnale": "giri",
+   "unita": "rpm"
+  },
+  {
+   "id": "gas",
+   "segnale": "gas",
+   "unita": "%"
+  }
  ],
  "blocchi": [
-  {"id": "piega_abs", "tipo": "abs", "ingressi": ["piega"]},
-  {"id": "piega_f", "tipo": "passabasso", "ingressi": ["piega_abs"], "alfa": 0.1, "descrizione": "SEGNAPOSTO: coefficiente del filtro decodificato"},
-  {"id": "R_post", "tipo": "tabella", "tabella": "PROFILO_POST", "x": "piega_abs", "unita": "mm"},
-  {"id": "R_ant", "tipo": "tabella", "tabella": "PROFILO_ANT", "x": "piega_abs", "unita": "mm"},
-  {"id": "slip", "tipo": "espressione", "espressione": "(v_post * R_post / 335.9 - v_ant * R_ant / 299.9) / max(v_ant, 15) * 100", "unita": "%"},
-  {"id": "soglia1", "tipo": "tabella", "tabella": "CRIT1_SOGLIA", "x": "giri", "y": "piega_f"},
-  {"id": "soglia2", "tipo": "tabella", "tabella": "CRIT2_SOGLIA", "x": "piega_f"},
-  {"id": "soglia3", "tipo": "tabella", "tabella": "CRIT3_SOGLIA", "x": "gas"},
-  {"id": "soglia4", "tipo": "tabella", "tabella": "CRIT4_SOGLIA", "x": "piega_f"}
+  {
+   "id": "piega_abs",
+   "tipo": "abs",
+   "ingressi": [
+    "piega"
+   ]
+  },
+  {
+   "id": "piega_f",
+   "tipo": "passabasso",
+   "ingressi": [
+    "piega_abs"
+   ],
+   "alfa": 0.1,
+   "descrizione": "SEGNAPOSTO: coefficiente del filtro decodificato"
+  },
+  {
+   "id": "R_post",
+   "tipo": "tabella",
+   "tabella": "PROFILO_POST",
+   "x": "piega_abs",
+   "unita": "mm"
+  },
+  {
+   "id": "R_ant",
+   "tipo": "tabella",
+   "tabella": "PROFILO_ANT",
+   "x": "piega_abs",
+   "unita": "mm"
+  },
+  {
+   "id": "slip",
+   "tipo": "espressione",
+   "espressione": "(v_post * R_post / 335.9 - v_ant * R_ant / 299.9) / max(v_ant, 15) * 100",
+   "unita": "%"
+  },
+  {
+   "id": "soglia1",
+   "tipo": "tabella",
+   "tabella": "CRIT1_SOGLIA",
+   "x": "giri",
+   "y": "piega_f"
+  },
+  {
+   "id": "soglia2",
+   "tipo": "tabella",
+   "tabella": "CRIT2_SOGLIA",
+   "x": "piega_f"
+  },
+  {
+   "id": "soglia3",
+   "tipo": "tabella",
+   "tabella": "CRIT3_SOGLIA",
+   "x": "gas"
+  },
+  {
+   "id": "soglia4",
+   "tipo": "tabella",
+   "tabella": "CRIT4_SOGLIA",
+   "x": "piega_f"
+  }
  ],
  "criteri": [
-  {"id": "C1", "nome": "criterio 1", "valore": "slip", "soglia": "soglia1", "confronto": ">", "unita": "%"},
-  {"id": "C2", "nome": "criterio 2", "valore": "piega_f", "soglia": "soglia2", "confronto": ">", "unita": "deg"},
-  {"id": "C3", "nome": "criterio 3", "valore": "gas", "soglia": "soglia3", "confronto": ">", "unita": "%"},
-  {"id": "C4", "nome": "criterio 4", "valore": "slip", "soglia": "soglia4", "confronto": ">", "unita": "%"}
+  {
+   "id": "C1",
+   "nome": "criterio 1",
+   "valore": "slip",
+   "soglia": "soglia1",
+   "confronto": ">",
+   "unita": "%"
+  },
+  {
+   "id": "C2",
+   "nome": "criterio 2",
+   "valore": "piega_f",
+   "soglia": "soglia2",
+   "confronto": ">",
+   "unita": "deg"
+  },
+  {
+   "id": "C3",
+   "nome": "criterio 3",
+   "valore": "gas",
+   "soglia": "soglia3",
+   "confronto": ">",
+   "unita": "%"
+  },
+  {
+   "id": "C4",
+   "nome": "criterio 4 (derivata di potenza)",
+   "valore": "slip",
+   "soglia": "soglia4",
+   "confronto": ">",
+   "unita": "%",
+   "derivata": true
+  }
  ],
  "rami": [
-  {"id": "R1", "nome": "ramo 1", "condizione": "C1 and C2 and C3"},
-  {"id": "R2", "nome": "ramo 2", "condizione": "C4 and C3"}
+  {
+   "id": "R1",
+   "nome": "ramo 1",
+   "condizione": "C1 and C2 and C3"
+  },
+  {
+   "id": "R2",
+   "nome": "ramo 2",
+   "condizione": "C4 and C3"
+  }
  ],
  "logica": "R1 or R2",
  "uscite": [],
- "osservati": [{"id": "trq_fast", "segnale": "trq_fast", "soglia": 0.5, "confronta_con": "logica"}]
+ "osservati": [
+  {
+   "id": "trq_fast",
+   "segnale": "trq_fast",
+   "soglia": 0.5,
+   "confronta_con": "logica"
+  }
+ ]
 }

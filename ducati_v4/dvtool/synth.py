@@ -333,7 +333,7 @@ MODELLO_DEMO = {
         {"id": "C1", "nome": "Slittamento oltre soglia", "valore": "slip_f", "soglia": "soglia_slip", "confronto": ">", "isteresi": 0.5, "unita": "%"},
         {"id": "C2", "nome": "Piega oltre il minimo", "valore": "piega_f", "soglia": "piega_min", "confronto": ">", "isteresi": 1.0, "unita": "deg"},
         {"id": "C3", "nome": "Gas aperto", "valore": "gas", "soglia": "gas_min", "confronto": ">", "unita": "%"},
-        {"id": "C4", "nome": "Slittamento che cresce in fretta", "valore": "dslip_f", "soglia": "soglia_dslip", "confronto": ">", "unita": "%/s"}],
+        {"id": "C4", "nome": "Slittamento che cresce in fretta", "valore": "dslip_f", "soglia": "soglia_dslip", "confronto": ">", "unita": "%/s", "derivata": True}],
     "rami": [
         {"id": "R1", "nome": "Ramo slittamento", "condizione": "C1 and C2 and C3"},
         {"id": "R2", "nome": "Ramo derivata", "condizione": "C4 and C2 and C3 and not C1"}],
