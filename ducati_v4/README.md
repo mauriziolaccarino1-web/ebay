@@ -26,6 +26,19 @@ Nessuna installazione oltre a Python 3.10+ e `numpy`. Il visualizzatore è una p
 > **Il repository è pubblico.** DBC, file della centralina, struttura e modello compilati, acquisizioni e token
 > vanno in `privato/`, che git ignora. Qui ci sono solo il codice, i modelli vuoti e un esempio sintetico.
 
+## 0. Il modo più semplice: la Guida
+
+Doppio clic su **`guida.bat`**: si apre nel browser una procedura passo per passo, con un pulsante per ogni fase:
+
+1. **Prima di partire**: controlla cosa c'è sul PC (client SSH, chiave, DBC, struttura, modello, file della centralina) e spiega cosa fare per le voci in rosso; qui si imposta l'indirizzo della scatola e la pista.
+2. **Collega il cronometro**: prova il collegamento in sola lettura e mostra lo stato della scatola.
+3. **Registra**: chiede la password di sudo della scatola, che non viene salvata, mette `can1` in ascolto e avvia la registrazione; *Controlla che stia registrando* verifica che il file cresca. Poi si stacca il PC e si esce in pista.
+4. **Ferma e scarica**: ferma, scarica con verifica delle impronte e **rimette la scatola come per la R9**.
+5. **Riguarda**: scegli l'acquisizione, la mappa A (montata) e la mappa B (da confrontare). La Guida stima giri e curve, verifica il protocollo, ricalcola la catena e apre il visualizzatore.
+6. **Prepara il file per la centralina**: dopo la modifica in *Mappe*, il pulsante *Prepara il file per la centralina* crea un file nuovo in `privato\calibrazioni\modificati`. Il file ha checksum corretto e verificato e il confronto con l'originale; se la regola del checksum non torna sull'originale, la Guida rifiuta di prepararlo. Gli originali non vengono mai modificati.
+
+La Guida gira solo su questo PC (127.0.0.1) e accetta comandi solo dalle sue pagine.
+
 ## 1. Prova subito con i dati DEMO
 
 ```
@@ -83,7 +96,7 @@ Fatti dalle sessioni precedenti, da ricontrollare sulla scatola che porti:
 | indirizzo via USB | 169.254.55.1 | 169.254.59.1 |
 | utente SSH | yccu | yccu |
 | bus moto | can1 (MCP2515) | can1 (MCP2515) |
-| candump | **non installato** → si usa `registratore_can.py` | presente |
+| candump | non installato (non serve) | presente (non serve) |
 | sudo | chiede la password | senza password |
 
 Bus Ducati: 500 kbit/s, ID a 11 bit. Il cronometro **deve stare in listen-only**: non dà l'ACK e non può
@@ -91,14 +104,21 @@ trasmettere nulla sul bus della moto.
 
 ```
 py -m dvtool cronometro stato    --scatola r9          # risponde? can1 com'è? servizi attivi?
-py -m dvtool cronometro installa --scatola r9          # solo la prima volta: copia registratore_can.py in ~/dvtool
-py -m dvtool cronometro prepara  --scatola r9          # ferma i registratori r9, can1 a 500k in LISTEN-ONLY
+py -m dvtool cronometro prepara  --scatola r9          # ferma per ora i registratori r9, can1 a 500k in LISTEN-ONLY
 py -m dvtool cronometro registra --scatola r9          # avvia la registrazione in ~/catture_ducati/
    ... turno in pista ...
 py -m dvtool cronometro ferma    --scatola r9
 py -m dvtool cronometro scarica  --scatola r9 --dest privato\acquisizioni
-py -m dvtool cronometro ripristina --scatola r9        # listen-only off, servizi di nuovo attivi
+py -m dvtool cronometro ripristina --scatola r9        # listen-only off, riavvia solo i servizi che erano attivi
 ```
+
+**La scatola della R9 non viene modificata.**
+- Niente viene installato: il registratore (`dvtool/registratore_can.py`, solo libreria standard) viene mandato via SSH in una copia temporanea `/tmp/dvtool_registratore.py`, che sparisce allo spegnimento.
+- I servizi R9 che usano `can1` vengono solo **fermati**, non disattivati. `ripristina` riavvia esattamente quelli che erano attivi prima, letti da `~/catture_ducati/.servizi_attivi_prima`.
+- Il listen-only di `can1` è un'impostazione del momento.
+- Spegnendo e riaccendendo, la scatola torna esattamente come per la R9.
+- Resta solo la cartella dati `~/catture_ducati`.
+- Sul PC di lavoro serve una riga in più fra le chiavi SSH autorizzate della scatola (`cronometro autorizza`).
 
 Ogni comando che cambia qualcosa sulla scatola mostra cosa eseguirà e chiede conferma. Sulla scatola non viene
 cancellato nulla; `scarica` confronta le impronte sha256. Con `--host` usi un altro indirizzo (es. hotspot del
@@ -106,6 +126,7 @@ telefono: sulla R9 l'ultimo ottetto è sempre .206). Le impostazioni si possono 
 
 Note:
 
+- Se la scatola si spegne con la moto, alla riaccensione è tornata come per la R9: rifai *prepara* e *registra* (passo 3 della Guida).
 - Il formato registrato è quello di `candump -L` (come la cattura SFV4 del 31/10), letto direttamente da tutti i comandi.
 - Senza GPS l'orologio della scatola può essere sbagliato: per l'analisi contano solo i tempi relativi.
 - L'MCP2515 a questo carico perde qualche frame (12 overflow in 48 s sulla SFV4): la verifica del protocollo li conta per ID.
@@ -248,5 +269,6 @@ viewer/            visualizzatore (index.html, js/, style.css, lib/uPlot)
 esempi/            profilo Ducati V4, modelli da compilare, raccolta per il trasferimento
 privato/           (ignorata da git) dati veri
 tests/             prove
+guida.bat                    la Guida (doppio clic)
 dvtool.bat, visualizza.bat   avvio rapido su Windows
 ```

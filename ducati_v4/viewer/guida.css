@@ -1,0 +1,38 @@
+/* Guida passo per passo (usa i colori di style.css) */
+body.guida { grid-template-rows: auto 1fr; }
+.guida-wrap { display: grid; grid-template-columns: 270px 1fr; gap: 16px; padding: 16px; align-items: start; min-height: 0; }
+@media (max-width: 820px) { .guida-wrap { grid-template-columns: 1fr; } }
+.passi { display: grid; gap: 6px; position: sticky; top: 12px; }
+.passi button { display: grid; grid-template-columns: 28px 1fr; gap: 8px; align-items: center; text-align: left; font: inherit; color: var(--testo);
+  background: var(--superficie); border: 1px solid var(--bordo); border-radius: 10px; padding: 10px; cursor: pointer; }
+.passi button.attivo { border-color: var(--s1); box-shadow: inset 4px 0 0 var(--s1); }
+.passi .num { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px;
+  background: var(--superficie-2); color: var(--testo-2); }
+.passi button.fatto .num { background: var(--ok); color: #fff; }
+.passi .sotto { display: block; font-size: 12px; color: var(--testo-2); }
+.passo { max-width: 980px; }
+.passo h2 { font-size: 20px; margin-bottom: 4px; }
+.passo .intro { color: var(--testo-2); margin: 0 0 14px; }
+.scheda { background: var(--superficie); border: 1px solid var(--bordo); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+.scheda h3 { margin-bottom: 8px; }
+.azioni { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 4px; }
+.bottone.grande { font-size: 15px; padding: 8px 16px; min-height: 38px; }
+.campi { display: grid; grid-template-columns: max-content 1fr; gap: 8px 12px; align-items: center; }
+.campi input[type=text], .campi input[type=password], .campi select { width: min(100%, 360px); }
+.controllo { display: grid; grid-template-columns: 22px 1fr; gap: 2px 8px; padding: 6px 0; border-bottom: 1px solid var(--griglia); }
+.controllo:last-child { border-bottom: 0; }
+.controllo .icona { font-weight: 700; }
+.controllo .icona.si { color: var(--ok); }
+.controllo .icona.no { color: var(--critico); }
+.controllo .det { color: var(--testo-2); font-size: 13px; grid-column: 2; }
+.controllo .aiuto { font-size: 12.5px; grid-column: 2; background: var(--superficie-2); border-radius: 6px; padding: 6px 8px; margin-top: 4px; }
+.esito { border-radius: 8px; padding: 10px 12px; margin-top: 10px; border: 1px solid var(--bordo); }
+.esito.si { border-left: 4px solid var(--ok); }
+.esito.no { border-left: 4px solid var(--critico); }
+.esito.attesa { border-left: 4px solid var(--s1); }
+.esito pre { white-space: pre-wrap; font-size: 12px; margin: 6px 0 0; color: var(--testo-2); }
+.cosa-cambia { border-left: 4px solid var(--attenzione); background: var(--superficie); padding: 10px 12px; border-radius: 6px; margin: 8px 0; font-size: 13.5px; }
+.cosa-cambia ul { margin: 6px 0 0 18px; padding: 0; }
+.giro-tempo { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.rotella { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--asse); border-top-color: var(--s1); border-radius: 50%; animation: gira .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+@keyframes gira { to { transform: rotate(360deg); } }

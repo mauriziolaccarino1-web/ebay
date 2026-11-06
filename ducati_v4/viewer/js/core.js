@@ -242,8 +242,15 @@
   };
 
   // modalità server (python -m dvtool visualizza): progetto.json nella cartella servita
+  // aperto dalla Guida (python -m dvtool guida): codice per le azioni del servizio locale
+  DV.api = async (percorso, corpo) => {
+    const r = await fetch(percorso, { method: "POST", headers: { "Content-Type": "application/json", "X-Dvtool-Codice": S.codice }, body: JSON.stringify(corpo) });
+    return r.json();
+  };
   DV.caricaProgetto = async () => {
     try {
+      try { const c = await (await fetch("/api/codice")).json(); S.guida = !!c.guida; S.codice = c.codice; } catch (e) { S.guida = false; }
+      if (S.guida) DV.emit("guida");
       const r = await fetch("progetto/progetto.json", { cache: "no-store" });
       if (!r.ok) return false;
       const P = await r.json();

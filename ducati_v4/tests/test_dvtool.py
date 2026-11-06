@@ -163,6 +163,52 @@ class ProvaModello(unittest.TestCase):
         np.testing.assert_allclose(r["criteri"]["C1"]["attivo"], [0, 1, 1, 1, 0, 0])
 
 
+class ProvaGuida(unittest.TestCase):
+    def setUp(self):
+        from dvtool import guida
+        self.g = guida
+        self.cart = tempfile.mkdtemp()
+        self.vecchi = (guida.RADICE, guida.FILE_IMP)
+        guida.RADICE = self.cart
+        guida.FILE_IMP = os.path.join(self.cart, "privato", "guida.json")
+        os.makedirs(os.path.join(self.cart, "privato", "calibrazioni"))
+        S = synth.struttura_demo()
+        Sn = calib.risolvi(S, "NOSLICK")
+        self.buf = bytes(synth.bin_demo(Sn, "NOSLICK"))
+        S["varianti"][0]["sha256"] = calib.sha256(self.buf)
+        with open(os.path.join(self.cart, "privato", "calibrazioni", "NOSLICK.bin"), "wb") as f:
+            f.write(self.buf)
+        self.S = S
+        with open(os.path.join(self.cart, "privato", "struttura.json"), "w") as f:
+            json.dump(S, f)
+        tab = next(t for t in Sn["tabelle"] if t["id"] == "DEMO_SOGLIA_SLIP_L2")
+        z = calib.leggi_tabella(Sn, tab, self.buf)["z"] * 1.1
+        self.patch = {"modifiche": [{"tabella": tab["id"], "valori": z.tolist()}]}
+
+    def tearDown(self):
+        self.g.RADICE, self.g.FILE_IMP = self.vecchi
+        shutil.rmtree(self.cart)
+
+    def test_prepara_file_senza_toccare_l_originale(self):
+        r = self.g.applica({"file": "NOSLICK.bin", "patch": self.patch})
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["variante"], "NOSLICK")
+        self.assertEqual([t["id"] for t in r["tabelle_cambiate"]], ["DEMO_SOGLIA_SLIP_L2"])
+        self.assertEqual(r["fuori_struttura"], [])
+        self.assertTrue(os.path.exists(r["percorso"]) and os.path.exists(r["percorso"] + ".patch.json"))
+        with open(os.path.join(self.cart, "privato", "calibrazioni", "NOSLICK.bin"), "rb") as f:
+            self.assertEqual(f.read(), self.buf)  # originale intatto
+
+    def test_rifiuta_se_il_checksum_dell_originale_non_torna(self):
+        self.S["checksum"][0]["algoritmo"] = "crc32"   # regola sbagliata
+        with open(os.path.join(self.cart, "privato", "struttura.json"), "w") as f:
+            json.dump(self.S, f)
+        r = self.g.applica({"file": "NOSLICK.bin", "patch": self.patch})
+        self.assertFalse(r["ok"])
+        self.assertIn("ORIGINALE", r["errore"])
+        self.assertFalse(os.path.exists(os.path.join(self.cart, "privato", "calibrazioni", "modificati")))
+
+
 class ProvaFineAFine(unittest.TestCase):
     def test_demo_sessione_e_js(self):
         cart = tempfile.mkdtemp()

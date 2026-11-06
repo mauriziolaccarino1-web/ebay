@@ -1,6 +1,7 @@
 """Riga di comando:  python -m dvtool <comando> ...   (su Windows anche:  py -m dvtool ...)
 
 Comandi principali
+  guida       la Guida passo per passo nel browser (consigliato: doppio clic su guida.bat)
   demo        crea i dati sintetici di prova e (opzionale) apre il visualizzatore
   can         inventario | decodifica | verifica   sui log CAN grezzi
   giri        stima i giri senza GPS
@@ -315,6 +316,12 @@ def cmd_progetto(a):
     print(json.dumps(P, indent=1, ensure_ascii=False))
 
 
+def cmd_guida(a):
+    from . import guida, server
+    imp = guida.impostazioni()
+    server.avvia(guida._p(imp["progetto"]), porta=a.porta, apri_browser=not a.no_browser, guida=True)
+
+
 def cmd_visualizza(a):
     from . import server
     server.avvia(a.cartella, porta=a.porta, apri_browser=not a.no_browser)
@@ -396,7 +403,7 @@ def main(argv=None):
     t.set_defaults(f=cmd_pacchetto)
 
     r = sp.add_parser("cronometro", help="scatola H3D Chrono (R9) usata come registratore")
-    r.add_argument("azione", choices=["stato", "installa", "prepara", "registra", "ferma", "elenco", "scarica",
+    r.add_argument("azione", choices=["stato", "prepara", "registra", "ferma", "elenco", "scarica",
                                       "ripristina", "pacchetto", "tabelle", "autorizza"])
     r.add_argument("--scatola", help="r9 | cm4 (default dal file privato/cronometro.json, altrimenti r9)")
     r.add_argument("--host", default=os.environ.get("H3D_HOST"), help="IP della scatola (USB o hotspot)")
@@ -419,6 +426,11 @@ def main(argv=None):
     q.add_argument("--riferimento", help="nome della calibrazione di riferimento")
     q.add_argument("--confronto", help="nome della calibrazione di confronto / copia di lavoro")
     q.set_defaults(f=cmd_progetto)
+
+    gu = sp.add_parser("guida", help="Guida passo per passo nel browser: cronometro, acquisizioni, analisi, file per la centralina")
+    gu.add_argument("--porta", type=int, default=8765)
+    gu.add_argument("--no-browser", action="store_true")
+    gu.set_defaults(f=cmd_guida)
 
     v = sp.add_parser("visualizza", help="apre il visualizzatore")
     v.add_argument("cartella", nargs="?", default=".")

@@ -103,6 +103,7 @@
     sc.hidden = !DV.curve().length;
   }
   DV.on("curve", () => { aggiornaCurve(); sporca(); });
+  DV.on("guida", () => { $("#link-guida").hidden = false; });
   $("#curva").addEventListener("change", (e) => {
     const c = DV.curve().find((x) => x.id === e.target.value);
     if (!c) return;

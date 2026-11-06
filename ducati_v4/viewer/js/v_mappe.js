@@ -374,7 +374,25 @@
         const c = DV.calDi(S.cfr);
         DV.scarica(`patch_${S.cfr}.json`, JSON.stringify({ base: S.cfr, base_sha256: c.sha, variante: c.variante, creato: new Date().toISOString(), modifiche: mod }, null, 1), "application/json");
       });
-      box.append(el("div", { class: "strumenti" }, bBin, bPatch),
+      let bGuida = null;
+      const esito = el("div", { class: "nota" });
+      if (S.guida) {
+        bGuida = el("button", { class: "bottone primario" }, "Prepara il file per la centralina");
+        bGuida.addEventListener("click", async () => {
+          const c = DV.calDi(S.cfr);
+          const mod = cambi.map((t) => ({ tabella: t.id, valori: DV.calib.leggi(S.struttura, t, S.binMod).z }));
+          if (!mod.length) { DV.avviso("nessuna tabella modificata nella copia di lavoro di " + S.cfr, "errore"); return; }
+          esito.textContent = "preparo il file…";
+          const r = await DV.api("/api/guida/applica", { file: c.fileNome, patch: { base: S.cfr, base_sha256: c.sha, variante: c.variante, creato: new Date().toISOString(), modifiche: mod } });
+          esito.innerHTML = "";
+          if (!r.file) { esito.append(el("b", {}, "✕ file non preparato: "), r.errore || ""); return; }
+          esito.append(el("b", {}, r.ok ? "✓ file pronto: " : "✕ file creato ma NON pronto: "), el("code", {}, r.file),
+            ` · checksum ${r.checksum.map((x) => (x.ok ? "ok" : "ERRATO")).join(", ") || "nessuno"} · ${r.tabelle_cambiate.length} tabelle cambiate · ` +
+            (r.fuori_struttura.length ? `${r.fuori_struttura.length} zone cambiate fuori dalla struttura: NON scriverlo` : "nessuna zona fuori dalla struttura"));
+          DV.avviso(r.ok ? "file per la centralina pronto in " + r.file : "file NON pronto: vedi la scheda Mappe", r.ok ? "info" : "errore");
+        });
+      }
+      box.append(el("div", { class: "strumenti" }, bGuida, bBin, bPatch), esito,
         el("div", { class: "nota" }, "Consigliato: applica la patch con «python -m dvtool calib applica» che riscrive le tabelle, corregge e verifica il checksum e controlla che il file di partenza sia quello giusto."));
       return box;
     },
