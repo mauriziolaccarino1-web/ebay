@@ -289,7 +289,7 @@ def bin_demo(S, variante="NOSLICK"):
         calib.scrivi_tabella(S, per[f"DEMO_SOGLIA_SLIP_L{liv}"], buf, z)
     calib.scrivi_tabella(S, per["DEMO_PIEGA_MIN"], buf, [[34, 32, 30, 28, 26, 24, 22, 22]] if slick else [[30, 28, 26, 24, 22, 20, 18, 18]])
     calib.scrivi_tabella(S, per["DEMO_GAS_MIN"], buf, [[15.0]])
-    calib.scrivi_tabella(S, per["DEMO_SOGLIA_DSLIP"], buf, [[60, 55, 50, 45, 40, 40]])
+    calib.scrivi_tabella(S, per["DEMO_SOGLIA_DSLIP"], buf, [[34, 31, 28, 26, 24, 24]] if slick else [[28, 26, 24, 22, 20, 20]])
     E = np.array(ASSE_ECCESSO, float)[None, :]
     calib.scrivi_tabella(S, per["DEMO_TAGLIO"], buf, np.clip((3 if slick else 4) * E * (1 + P / 60), 0, 100))
     ph = np.array(ASSE_PROF, float)

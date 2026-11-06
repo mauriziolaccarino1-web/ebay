@@ -12,8 +12,8 @@ Strumenti per:
 | usare il cronometro R9 (o la CM4) **solo come registratore** CAN sulla Ducati | `dvtool cronometro` + `dvtool/registratore_can.py` |
 | tempi sul giro **senza antenna GPS**, dalla distanza percorsa | `dvtool giri` (anche dentro `sessione`) |
 | verificare che la moto usi il protocollo della Streetfighter V4S | `dvtool can verifica` + scheda *Protocollo CAN* |
-| vedere quale ramo dei controlli lavora, dove è il punto attuale, quanto manca a ogni soglia (4 criteri) | visualizzatore, schede *Criteri e rami* e *Flusso dati* |
-| tracciare tutta la sequenza dei dati (CAN → ingressi → blocchi → criteri → rami → logica → uscita) | scheda *Flusso dati* |
+| vedere quale ramo dei controlli lavora, dove è il punto attuale, quanto manca a ogni soglia (4 criteri) | visualizzatore, schede *Criteri e rami* e *Schema software* |
+| vedere lo schema del software della centralina dei controlli con le tabelle espanse, il ramo attivo e le celle su cui lavora; tracciare tutta la sequenza dei dati (CAN → ingressi → blocchi → criteri → rami → logica → uscita) | scheda *Schema software* |
 | per ogni ramo, quanto si è lontani dal trigger della derivata (di potenza) e dove nel giro ci si avvicina | scheda *Trigger per ramo* |
 | ripercorrere il giro vedendo, come in INCA, le lookup table lette dal programma con le celle su cui sta la moto e il ramo attivo | scheda *Tabelle dal vivo* |
 | scegliere la mappa di riferimento (NOSLICK, SLICK, …) e confrontarla con un'altra | selettori **A** / **B** in alto, `dvtool progetto --cal` |
@@ -158,14 +158,19 @@ delle due era davvero montata (demo: NOSLICK 95%, SLICK 36%).
 - **Acquisizione**: canali nel tempo (stessa unità = stesso grafico), pista ricostruita con il punto attuale, interventi evidenziati.
 - **Criteri e rami**: per ognuno dei criteri valore, soglia, misuratore con isteresi e distanza dalla soglia (in unità e in % della soglia). Mostra i rami con i termini veri/falsi, cosa manca perché un ramo lavori, la logica e l'uscita. Confronta la previsione con ciò che la centralina ha fatto davvero (canale CAN osservato). Grafici della distanza normalizzata e statistiche per giro, originale → modificata.
 - **Trigger per ramo**: per ogni ramo una scheda con lo stato, la distanza del ramo intero dal suo trigger (il termine più lontano) e, per il criterio a derivata, valore, soglia, quanto manca e a che velocità ci si avvicina, con la stima del tempo al trigger. Sotto ci sono, per ramo, la distanza nel tempo, il minimo ogni 10 m lungo il giro (dove ci si avvicina, giro per giro) e una tabella per giro con scatti, durata e punto più vicino (clic = vai all'istante). Il criterio a derivata è quello con `"derivata": true` nel modello, oppure con un blocco «derivata» a monte del valore.
-- **Tabelle dal vivo** (stile INCA): una finestra per ogni lookup table letta dal programma dei controlli, con i parametri attuali (per esempio la soglia del livello 2). Mentre ripercorri il giro (▶, frecce, trascinando la linea del tempo) mostra:
+- **Tabelle dal vivo** (vista compatta, alternativa allo schema): una finestra per ogni lookup table letta dal programma dei controlli, con i parametri attuali (per esempio la soglia del livello 2). Mentre ripercorri il giro (▶, frecce, trascinando la linea del tempo) mostra:
   - le 4 celle che la centralina sta interpolando, colorate in proporzione al peso;
   - i valori d'asse evidenziati e il mirino sul punto esatto;
   - la scia degli ultimi secondi e il valore in uscita;
   - l'avviso «saturato» quando l'ingresso esce dall'asse.
 
   Le finestre del ramo che sta lavorando sono bordate di rosso, quelle dei rami fermi si attenuano. Si può chiedere di vedere solo le tabelle del ramo attivo. A sinistra ci sono lo stato di logica, rami e criteri (quanto manca alla soglia) e la finestra *Misure* con tutte le grandezze della catena. Lo sfondo delle celle può essere il valore, *dove lavora nel giro* oppure la differenza B − A. Calcolo con A o con B a scelta.
-- **Flusso dati**: il grafo di tutta la catena con il valore di ogni passo al cursore. Un clic su un nodo traccia a monte fino al segnale CAN, con la sequenza dei passi in ordine di calcolo. Un doppio clic su una tabella la apre.
+- **Schema software**: lo schema a blocchi della centralina dei controlli nello stile degli SVG del flusso del software, cioè corsie verticali (Bus CAN, Ingressi, Condizionamento, Mappe e curve, Criteri, Rami e logica, Uscite verso il motore), blocchi con la barra colorata della corsia e connessioni curve. Le lookup table sono **espanse dentro lo schema**, su fondo giallo come nello schema Simulink, con le celle colorate per valore. All'istante del cursore:
+  - il **ramo che lavora** e tutto ciò che lo alimenta è disegnato come bus rosso spesso, i rami fermi restano grigi;
+  - in ogni tabella le **celle che la centralina sta leggendo** sono in arancio, in proporzione al peso, con mirino e scia;
+  - i criteri mostrano valore, soglia e una barra con la soglia.
+
+  Un clic su un blocco traccia a monte fino al segnale CAN, con la sequenza dei passi. Un doppio clic su una tabella la apre in *Mappe*. *Scarica SVG* salva lo schema di quell'istante. Le corsie si possono assegnare a mano con `"corsia"` nei blocchi e `"corsie"` nel modello.
 - **Mappe**: elenco con le tabelle *in uso* con i parametri attuali, *≠ A* e *✎ modificata*. Viste valori, differenza B − A, *dove lavora* (percentuale di tempo per cella nel giro scelto) e superficie 3D. Il punto di lavoro al cursore ha una scia di 3 s. Puoi modificare (imposta, somma, %, interpola, liscia, riporta all'originale, annulla, punti trascinabili sulle curve) e i criteri si ricalcolano subito sulla stessa acquisizione. Esporti il `.bin` con il checksum corretto oppure una patch `.json`.
 - **Profilo pneumatico**: raggio di rotolamento in funzione della piega (originale/modificato), sezione della gomma ricostruita dal profilo con il punto di contatto alla piega del cursore, correzione della velocità ruota, effetto della modifica sullo slittamento calcolato e generatore toroidale. C'è anche la **verifica sul registrato**: in rilascio lo slittamento corretto dovrebbe stare a zero a ogni piega. Se cresce con la piega, il profilo in tabella non è quello della gomma montata.
 - **Giri**: tempi, distacchi, sovrapposizione per distanza e distacco lungo il giro.
