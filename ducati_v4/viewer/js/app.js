@@ -19,6 +19,7 @@
   const sporca = () => { for (const v of Object.values(viste)) v.sporca = true; if (viste[S.vista]) { viste[S.vista].disegna(); viste[S.vista].sporca = false; } };
   DV.on("sessione", () => { $("#vuoto").hidden = !!S.sess; aggiornaGiri(); aggiornaParametri(); sporca(); disegnaTimeline(); aggiornaOra(); });
   DV.on("modello", () => { sporca(); disegnaTimeline(); aggiornaParametri(); });
+  DV.on("modello", () => aggiornaStatoCal());
   DV.on("calibrazione", () => { aggiornaStatoCal(); for (const v of Object.values(viste)) v.sporca = true; if (["mappe", "pneumatico"].includes(S.vista)) { viste[S.vista].disegna(); viste[S.vista].sporca = false; } });
   DV.on("cursore", () => { aggiornaOra(); disegnaCursoreTimeline(); const v = viste[S.vista]; if (v && v.cursore) v.cursore(); });
 
@@ -40,14 +41,25 @@
   $("#sessioni").addEventListener("change", (e) => DV.apriSessione(e.target.value));
 
   function aggiornaStatoCal() {
-    const parti = [];
-    if (S.struttura) parti.push(`${S.struttura.tabelle.length} tabelle`);
-    if (S.binOrig) {
-      const v = S.struttura ? DV.calib.verifica(S.struttura, S.binMod || S.binOrig) : [];
-      const ok = v.every((x) => x.ok);
-      parti.push(`${S.nomeMod || S.nomeOrig}${v.length ? (ok ? " · checksum ok" : " · checksum da ricalcolare (lo fa l'esportazione)") : " · nessun checksum definito"}`);
+    const box = $("#stato-cal");
+    box.innerHTML = "";
+    if (!S.cal.length) { box.textContent = S.struttura ? `${S.struttura.tabelle.length} tabelle · nessun file .bin` : ""; return; }
+    const sel = (val, on, titolo) => {
+      const s = el("select", { title: titolo });
+      S.cal.forEach((c) => s.append(el("option", { value: c.nome, selected: c.nome === val || undefined }, c.nome + (c.variante && c.variante !== c.nome ? ` (${c.variante})` : ""))));
+      s.addEventListener("change", () => on(s.value));
+      return s;
+    };
+    box.append(el("label", { class: "fila", style: { gap: "4px" } }, "A", sel(S.rif, (v) => DV.scegliCalibrazioni(v, null), "A = riferimento (per esempio la mappa montata in moto)")),
+      el("label", { class: "fila", style: { gap: "4px" } }, "B", sel(S.cfr, (v) => DV.scegliCalibrazioni(null, v), "B = confronto: la mappa da confrontare con A e da modificare (copia di lavoro)")));
+    if (S.struttura && S.binMod) {
+      let testo;
+      try {
+        const v = DV.calib.verifica(S.struttura, S.binMod);
+        testo = !v.length ? "nessun checksum definito" : v.every((x) => x.ok) ? "checksum B ok" : "checksum B da ricalcolare (lo fa l'esportazione)";
+      } catch (e) { testo = e.message; }
+      box.append(el("span", { class: "tenue" }, (DV.lavoroModificato() ? "B modificata · " : "") + testo));
     }
-    $("#stato-cal").textContent = parti.join(" · ");
   }
 
   // ---------------------------------------------------------------- giri e parametri
@@ -119,16 +131,18 @@
       ctx.font = "10px system-ui";
       if (b - a > 30) ctx.fillText(g.tipo === "lanciato" ? `G${g.numero}` : g.tipo === "uscita" ? "uscita" : g.tipo === "rientro" ? "rientro" : "?", a + 3, 10);
     });
-    // interventi previsti dal modello
-    const r = S.ris.mod || S.ris.orig;
-    if (r) {
-      ctx.fillStyle = DV.colore("--critico");
+    // interventi previsti dal modello: A in basso (rosso), B sopra (arancio) se diversa
+    const righe = [[S.ris.orig, "--critico", h - 6]];
+    if (DV.confrontoAttivo()) righe.push([S.ris.mod, "--s2", h - 13]);
+    for (const [r, col, y] of righe) {
+      if (!r) continue;
+      ctx.fillStyle = DV.colore(col);
       const L = r.logica;
       for (let px = 0; px < w; px++) {
         const i0 = Math.floor((px / w) * n), i1 = Math.floor(((px + 1) / w) * n);
         let on = false;
         for (let i = i0; i < i1 && !on; i++) on = L[i] > 0.5;
-        if (on) ctx.fillRect(px, h - 6, 1, 6);
+        if (on) ctx.fillRect(px, y, 1, 6);
       }
     }
     if (v) {

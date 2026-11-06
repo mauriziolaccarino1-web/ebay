@@ -7,6 +7,7 @@ Comandi principali
   sessione    log -> file di sessione per il visualizzatore (giri + catena di controllo + protocollo)
   calib       elenco | mostra | confronta | applica | checksum | cerca-checksum   sul file della centralina
   pacchetto   crea | apri | verifica   per portare i dati da un PC all'altro
+  progetto    prepara la cartella del visualizzatore (più calibrazioni, es. NOSLICK e SLICK)
   cronometro  stato | prepara | registra | ferma | scarica | ripristina   per la scatola H3D Chrono (R9/CM4)
   visualizza  avvia il visualizzatore nel browser (server locale, nessuna installazione)
 """
@@ -29,20 +30,42 @@ def _carica_json(p):
         return json.load(f)
 
 
+def _struttura_per(percorso, buf=None, variante=None):
+    """Carica la struttura e la risolve per la variante del file (dall'impronta se non indicata)."""
+    from . import calib
+    S = _carica_json(percorso)
+    v = variante or (calib.trova_variante(S, buf) if buf is not None else None)
+    try:
+        return calib.risolvi(S, v)
+    except KeyError as e:
+        nomi = [x["nome"] for x in S.get("varianti", [])]
+        raise SystemExit(f"struttura con indirizzi per variante: {e}. Varianti: {nomi}")
+
+
+def _cal(spec):
+    """'NOME=percorso' oppure 'percorso' -> (nome, percorso)."""
+    if "=" in spec and not os.path.exists(spec):
+        n, p = spec.split("=", 1)
+        return n, p
+    return os.path.splitext(os.path.basename(spec))[0], spec
+
+
 def cmd_demo(a):
     from . import synth, sessione
     out = a.out
     info = synth.genera(out)
     prof = _carica_json(os.path.join(out, "profilo_demo.json"))
     mod = _carica_json(os.path.join(out, "modello_demo.json"))
-    S = _carica_json(os.path.join(out, "struttura_demo.json"))
-    with open(os.path.join(out, "demo_originale.bin"), "rb") as f:
+    with open(os.path.join(out, "demo_NOSLICK.bin"), "rb") as f:
         buf = f.read()
+    S = _struttura_per(os.path.join(out, "struttura_demo.json"), buf)
     s = sessione.crea(os.path.join(out, "demo_log.candump"), prof, out, mod, S, buf)
+    s["meta"]["calibrazione"] = "NOSLICK"
     sessione.salva(s, os.path.join(out, "sessione_demo.json.gz"))
     _scrivi_progetto(out, struttura="struttura_demo.json", modello="modello_demo.json",
-                     sessioni=["sessione_demo.json.gz"], originale="demo_originale.bin", modificato="demo_modificato.bin",
-                     nome="DEMO – dati sintetici")
+                     sessioni=["sessione_demo.json.gz"],
+                     calibrazioni=[{"nome": "NOSLICK", "file": "demo_NOSLICK.bin"}, {"nome": "SLICK", "file": "demo_SLICK.bin"}],
+                     riferimento="NOSLICK", confronto="SLICK", nome="DEMO – dati sintetici")
     print(f"Demo creata in {out}: {info['frame']} frame CAN, {info['durata_s']:.0f} s, pista {info['lunghezza_pista_vera']:.0f} m")
     for n in s["meta"]["note"]:
         print("  -", n)
@@ -137,13 +160,17 @@ def cmd_sessione(a):
     prof = _carica_json(a.profilo)
     base = os.path.dirname(os.path.abspath(a.profilo))
     mod = _carica_json(a.modello) if a.modello else None
-    S = _carica_json(a.struttura) if a.struttura else None
-    buf = None
+    buf, nome_cal = None, None
     if a.bin:
-        with open(a.bin, "rb") as f:
+        nome_cal, p = _cal(a.bin[0])
+        with open(p, "rb") as f:
             buf = f.read()
+    S = _struttura_per(a.struttura, buf, a.variante) if a.struttura else None
     par = json.loads(a.parametri) if a.parametri else None
     s = sessione.crea(a.log, prof, base, mod, S, buf, a.frequenza, a.tabella, par, a.pista)
+    s["meta"]["calibrazione"] = nome_cal
+    if len(a.bin or []) > 1:
+        s["meta"]["calibrazioni_disponibili"] = [_cal(x)[0] for x in a.bin]
     sessione.salva(s, a.out)
     for n in s["meta"]["note"]:
         print("-", n)
@@ -160,7 +187,9 @@ def cmd_sessione(a):
 
 def cmd_calib(a):
     from . import calib
-    S = _carica_json(a.struttura)
+    buf0 = open(a.bin, "rb").read() if a.bin else None
+    S = _struttura_per(a.struttura, buf0, a.variante)
+    S2 = _struttura_per(a.struttura, open(a.altro, "rb").read(), a.variante_altro) if getattr(a, "altro", None) else S
     if a.azione == "elenco":
         buf = open(a.bin, "rb").read() if a.bin else None
         for r in calib.elenco(S, buf):
@@ -180,7 +209,16 @@ def cmd_calib(a):
     elif a.azione == "confronta":
         A = open(a.bin, "rb").read()
         B = open(a.altro, "rb").read()
-        _json(calib.confronta(S, A, B))
+        if S2 is S or json.dumps(S2["tabelle"]) == json.dumps(S["tabelle"]):
+            _json(calib.confronta(S, A, B))
+        else:  # varianti con indirizzi diversi: confronto tabella per tabella sui valori
+            out = []
+            for ta, tb in zip(S["tabelle"], S2["tabelle"]):
+                za = calib.leggi_tabella(S, ta, A)["z"]
+                zb = calib.leggi_tabella(S2, tb, B)["z"]
+                if za.shape != zb.shape or np.any(za != zb):
+                    out.append({"id": ta["id"], "celle_cambiate": int(np.count_nonzero(za != zb)) if za.shape == zb.shape else "dimensioni diverse"})
+            _json({"tabelle": out, "nota": "varianti con indirizzi diversi: confronto solo delle tabelle in struttura"})
     elif a.azione == "applica":
         buf = open(a.bin, "rb").read()
         patch = _carica_json(a.patch)
@@ -234,6 +272,44 @@ def cmd_cronometro(a):
     cronometro.cli(a)
 
 
+def cmd_progetto(a):
+    """Prepara la cartella che il visualizzatore apre: copia i file e scrive progetto.json."""
+    import shutil
+    os.makedirs(a.cartella, exist_ok=True)
+    p = os.path.join(a.cartella, "progetto.json")
+    P = _carica_json(p) if os.path.exists(p) else {}
+
+    def copia(src):
+        dest = os.path.join(a.cartella, os.path.basename(src))
+        if os.path.abspath(src) != os.path.abspath(dest):
+            shutil.copy2(src, dest)
+        return os.path.basename(src)
+    if a.nome:
+        P["nome"] = a.nome
+    if a.struttura:
+        P["struttura"] = copia(a.struttura)
+    if a.modello:
+        P["modello"] = copia(a.modello)
+    cal = {c["nome"]: c for c in P.get("calibrazioni", [])}
+    for spec in a.cal or []:
+        n, f = _cal(spec)
+        cal[n] = {"nome": n, "file": copia(f)}
+    if cal:
+        P["calibrazioni"] = list(cal.values())
+    for sx in a.sessione or []:
+        P.setdefault("sessioni", [])
+        b = copia(sx)
+        if b not in P["sessioni"]:
+            P["sessioni"].append(b)
+    if a.riferimento:
+        P["riferimento"] = a.riferimento
+    if a.confronto:
+        P["confronto"] = a.confronto
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(P, f, ensure_ascii=False, indent=1)
+    print(json.dumps(P, indent=1, ensure_ascii=False))
+
+
 def cmd_visualizza(a):
     from . import server
     server.avvia(a.cartella, porta=a.porta, apri_browser=not a.no_browser)
@@ -277,7 +353,8 @@ def main(argv=None):
     s.add_argument("--profilo", required=True)
     s.add_argument("--modello")
     s.add_argument("--struttura")
-    s.add_argument("--bin", help="file della centralina con cui ricalcolare (originale o modificato)")
+    s.add_argument("--bin", action="append", help="file della centralina, anche NOME=percorso; ripetibile (il primo è quello dei risultati salvati)")
+    s.add_argument("--variante")
     s.add_argument("--parametri", help='JSON, es. \'{"livello": 3}\'')
     s.add_argument("--frequenza", type=float)
     s.add_argument("--pista")
@@ -290,6 +367,8 @@ def main(argv=None):
     k.add_argument("--struttura", required=True)
     k.add_argument("--bin")
     k.add_argument("--altro", help="secondo file per 'confronta'")
+    k.add_argument("--variante", help="variante del file (es. NOSLICK, SLICK) se la struttura ha indirizzi per variante")
+    k.add_argument("--variante-altro", dest="variante_altro")
     k.add_argument("--tabella")
     k.add_argument("--patch")
     k.add_argument("--out")
@@ -324,6 +403,17 @@ def main(argv=None):
     r.add_argument("--file", help="file .r9session/.db (per 'tabelle') o chiave .pub (per 'autorizza')")
     r.add_argument("--dest", default="privato/acquisizioni")
     r.set_defaults(f=cmd_cronometro)
+
+    q = sp.add_parser("progetto", help="prepara la cartella del visualizzatore (calibrazioni, sessioni, struttura, modello)")
+    q.add_argument("--cartella", default="privato/progetto")
+    q.add_argument("--nome")
+    q.add_argument("--struttura")
+    q.add_argument("--modello")
+    q.add_argument("--cal", action="append", help="NOME=file.bin, ripetibile (es. NOSLICK=..., SLICK=...)")
+    q.add_argument("--sessione", action="append")
+    q.add_argument("--riferimento", help="nome della calibrazione di riferimento")
+    q.add_argument("--confronto", help="nome della calibrazione di confronto / copia di lavoro")
+    q.set_defaults(f=cmd_progetto)
 
     v = sp.add_parser("visualizza", help="apre il visualizzatore")
     v.add_argument("cartella", nargs="?", default=".")

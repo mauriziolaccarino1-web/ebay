@@ -8,28 +8,184 @@
   "tipo: valore | curva (1D, asse_x) | mappa (2D: asse_x = colonne, asse_y = righe) · ordine: righe | colonne",
   "Gli assi si definiscono una volta in 'assi' e si richiamano per nome; 'segnale' è il canale/blocco che li alimenta.",
   "checksum: senza la regola giusta il visualizzatore e 'calib applica' avvisano che il file NON è pronto da scrivere.",
+  "Più mappe (es. NOSLICK e SLICK): elencale in 'varianti' con lo sha256 del file; se una tabella sta in un indirizzo diverso nei due file scrivi \"indirizzo\": {\"NOSLICK\": \"0x...\", \"SLICK\": \"0x...\"} (vale anche per base, posizione e regioni del checksum). Se gli indirizzi sono uguali basta la stringa.",
   "Dopo averla compilata: python -m dvtool calib elenco --struttura <questo file> --bin <file originale>  e  calib checksum ... per verificare che il checksum dell'ORIGINALE risulti ok."
  ],
  "nome": "Panigale V4 2025 – controllo in piega (da compilare)",
- "file": {"base": "0x0", "dimensione": null, "sha256_originale": null, "nome_originale": "BBSV42025RACEEVO.ORI"},
+ "file": {
+  "base": "0x0",
+  "dimensione": null
+ },
+ "varianti": [
+  {
+   "nome": "NOSLICK",
+   "file": "",
+   "sha256": "",
+   "descrizione": "mappa per gomme stradali (quella montata)"
+  },
+  {
+   "nome": "SLICK",
+   "file": "",
+   "sha256": "",
+   "descrizione": "mappa per slick, più libera"
+  }
+ ],
  "checksum": [
-  {"id": "CS_1", "algoritmo": "sum32_le", "regioni": [["0x00000000", "0x00000000"]], "posizione": "0x00000000", "formato": "u32le", "complemento": "nessuno", "_nota": "SEGNAPOSTO"}
+  {
+   "id": "CS_1",
+   "algoritmo": "sum32_le",
+   "regioni": [
+    [
+     "0x00000000",
+     "0x00000000"
+    ]
+   ],
+   "posizione": "0x00000000",
+   "formato": "u32le",
+   "complemento": "nessuno",
+   "_nota": "SEGNAPOSTO"
+  }
  ],
  "assi": {
-  "ASSE_PIEGA":  {"indirizzo": "0x00000000", "n": 11, "dtype": "u16", "endian": "le", "scala": 1, "unita": "deg", "segnale": "piega_f", "_nota": "SEGNAPOSTO"},
-  "ASSE_GIRI":   {"indirizzo": "0x00000000", "n": 14, "dtype": "u16", "endian": "le", "scala": 1, "unita": "rpm", "segnale": "giri", "_nota": "SEGNAPOSTO"},
-  "ASSE_PROF":   {"indirizzo": "0x00000000", "n": 13, "dtype": "u16", "endian": "le", "scala": 1, "unita": "deg", "segnale": "piega_abs", "_nota": "SEGNAPOSTO"}
+  "ASSE_PIEGA": {
+   "indirizzo": "0x00000000",
+   "n": 11,
+   "dtype": "u16",
+   "endian": "le",
+   "scala": 1,
+   "unita": "deg",
+   "segnale": "piega_f",
+   "_nota": "SEGNAPOSTO"
+  },
+  "ASSE_GIRI": {
+   "indirizzo": "0x00000000",
+   "n": 14,
+   "dtype": "u16",
+   "endian": "le",
+   "scala": 1,
+   "unita": "rpm",
+   "segnale": "giri",
+   "_nota": "SEGNAPOSTO"
+  },
+  "ASSE_PROF": {
+   "indirizzo": "0x00000000",
+   "n": 13,
+   "dtype": "u16",
+   "endian": "le",
+   "scala": 1,
+   "unita": "deg",
+   "segnale": "piega_abs",
+   "_nota": "SEGNAPOSTO"
+  }
  },
  "tabelle": [
-  {"id": "CRIT1_SOGLIA", "nome": "Criterio 1 – soglia", "gruppo": "Criterio 1", "tipo": "mappa", "indirizzo": "0x00000000", "dtype": "u16", "endian": "le", "scala": 1, "offset": 0, "unita": "", "righe": 11, "colonne": 14, "ordine": "righe", "asse_x": "ASSE_GIRI", "asse_y": "ASSE_PIEGA", "verificato": false, "fonte": ""},
-  {"id": "CRIT2_SOGLIA", "nome": "Criterio 2 – soglia", "gruppo": "Criterio 2", "tipo": "curva", "indirizzo": "0x00000000", "dtype": "u16", "endian": "le", "scala": 1, "unita": "", "colonne": 11, "asse_x": "ASSE_PIEGA", "verificato": false},
-  {"id": "CRIT3_SOGLIA", "nome": "Criterio 3 – soglia", "gruppo": "Criterio 3", "tipo": "valore", "indirizzo": "0x00000000", "dtype": "u16", "endian": "le", "scala": 1, "unita": "", "verificato": false},
-  {"id": "CRIT4_SOGLIA", "nome": "Criterio 4 – soglia", "gruppo": "Criterio 4", "tipo": "curva", "indirizzo": "0x00000000", "dtype": "u16", "endian": "le", "scala": 1, "unita": "", "colonne": 11, "asse_x": "ASSE_PIEGA", "verificato": false},
-  {"id": "PROFILO_POST", "nome": "Profilo pneumatico posteriore", "gruppo": "Pneumatici", "tipo": "curva", "indirizzo": "0x00000000", "dtype": "u16", "endian": "le", "scala": 1, "unita": "mm", "colonne": 13, "asse_x": "ASSE_PROF", "verificato": false},
-  {"id": "PROFILO_ANT", "nome": "Profilo pneumatico anteriore", "gruppo": "Pneumatici", "tipo": "curva", "indirizzo": "0x00000000", "dtype": "u16", "endian": "le", "scala": 1, "unita": "mm", "colonne": 13, "asse_x": "ASSE_PROF", "verificato": false}
+  {
+   "id": "CRIT1_SOGLIA",
+   "nome": "Criterio 1 – soglia",
+   "gruppo": "Criterio 1",
+   "tipo": "mappa",
+   "indirizzo": "0x00000000",
+   "dtype": "u16",
+   "endian": "le",
+   "scala": 1,
+   "offset": 0,
+   "unita": "",
+   "righe": 11,
+   "colonne": 14,
+   "ordine": "righe",
+   "asse_x": "ASSE_GIRI",
+   "asse_y": "ASSE_PIEGA",
+   "verificato": false,
+   "fonte": ""
+  },
+  {
+   "id": "CRIT2_SOGLIA",
+   "nome": "Criterio 2 – soglia",
+   "gruppo": "Criterio 2",
+   "tipo": "curva",
+   "indirizzo": "0x00000000",
+   "dtype": "u16",
+   "endian": "le",
+   "scala": 1,
+   "unita": "",
+   "colonne": 11,
+   "asse_x": "ASSE_PIEGA",
+   "verificato": false
+  },
+  {
+   "id": "CRIT3_SOGLIA",
+   "nome": "Criterio 3 – soglia",
+   "gruppo": "Criterio 3",
+   "tipo": "valore",
+   "indirizzo": "0x00000000",
+   "dtype": "u16",
+   "endian": "le",
+   "scala": 1,
+   "unita": "",
+   "verificato": false
+  },
+  {
+   "id": "CRIT4_SOGLIA",
+   "nome": "Criterio 4 – soglia",
+   "gruppo": "Criterio 4",
+   "tipo": "curva",
+   "indirizzo": "0x00000000",
+   "dtype": "u16",
+   "endian": "le",
+   "scala": 1,
+   "unita": "",
+   "colonne": 11,
+   "asse_x": "ASSE_PIEGA",
+   "verificato": false
+  },
+  {
+   "id": "PROFILO_POST",
+   "nome": "Profilo pneumatico posteriore",
+   "gruppo": "Pneumatici",
+   "tipo": "curva",
+   "indirizzo": "0x00000000",
+   "dtype": "u16",
+   "endian": "le",
+   "scala": 1,
+   "unita": "mm",
+   "colonne": 13,
+   "asse_x": "ASSE_PROF",
+   "verificato": false
+  },
+  {
+   "id": "PROFILO_ANT",
+   "nome": "Profilo pneumatico anteriore",
+   "gruppo": "Pneumatici",
+   "tipo": "curva",
+   "indirizzo": "0x00000000",
+   "dtype": "u16",
+   "endian": "le",
+   "scala": 1,
+   "unita": "mm",
+   "colonne": 13,
+   "asse_x": "ASSE_PROF",
+   "verificato": false
+  }
  ],
  "profili_pneumatico": [
-  {"id": "post", "tabella": "PROFILO_POST", "ruota": "posteriore", "grandezza": "raggio_mm", "R0_mm": 335.9, "larghezza_mm": 200, "misura": "200/60 ZR17", "_nota": "grandezza: raggio_mm | fattore (R/R0) | delta_mm (R-R0)"},
-  {"id": "ant", "tabella": "PROFILO_ANT", "ruota": "anteriore", "grandezza": "raggio_mm", "R0_mm": 299.9, "larghezza_mm": 120, "misura": "120/70 ZR17"}
+  {
+   "id": "post",
+   "tabella": "PROFILO_POST",
+   "ruota": "posteriore",
+   "grandezza": "raggio_mm",
+   "R0_mm": 335.9,
+   "larghezza_mm": 200,
+   "misura": "200/60 ZR17",
+   "_nota": "grandezza: raggio_mm | fattore (R/R0) | delta_mm (R-R0)"
+  },
+  {
+   "id": "ant",
+   "tabella": "PROFILO_ANT",
+   "ruota": "anteriore",
+   "grandezza": "raggio_mm",
+   "R0_mm": 299.9,
+   "larghezza_mm": 120,
+   "misura": "120/70 ZR17"
+  }
  ]
 }

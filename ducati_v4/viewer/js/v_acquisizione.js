@@ -61,14 +61,14 @@
           perUnita.get(u).push(c);
         }
         if (!perUnita.size) grafici.append(el("p", { class: "nota" }, "Scegli i canali a sinistra."));
-        const banda = (S.ris.mod || S.ris.orig) ? [{ dati: (S.ris.mod || S.ris.orig).logica }] : [];
+        const banda = (S.ris.orig || S.ris.mod) ? [{ dati: (S.ris.orig || S.ris.mod).logica }] : [];
         for (const [u, cs] of perUnita) {
           const box = el("div");
           grafici.append(box);
           DV.grafico(box, { unita: u, altezza: cs.length > 2 ? 190 : 150, bande: banda,
             serie: cs.map((c, k) => ({ nome: c.nome, dati: c.dati, unita: c.unita, colore: DV.colSerie(k) })) });
         }
-        grafici.append(el("div", { class: "nota" }, "Trascina per ingrandire, doppio clic per tornare indietro, clic per spostare il cursore. Le bande rosse sono gli istanti in cui la catena ricalcolata interviene."));
+        grafici.append(el("div", { class: "nota" }, "Trascina per ingrandire, doppio clic per tornare indietro, clic per spostare il cursore. Le bande rosse sono gli istanti in cui la catena ricalcolata con A interviene."));
       };
       disegnaGrafici();
       this.disegnaMappa();
@@ -91,7 +91,7 @@
       const sc = Math.min((w - 30) / (x1 - x0 || 1), (h - 30) / (y1 - y0 || 1));
       this.trasf = (x, y) => [15 + (x - x0) * sc + ((w - 30) - (x1 - x0) * sc) / 2, h - 15 - (y - y0) * sc - ((h - 30) - (y1 - y0) * sc) / 2];
       // quanto spesso interviene ogni tratto della pista (sui giri lanciati)
-      const r = S.ris.mod || S.ris.orig;
+      const r = S.ris.orig || S.ris.mod;
       const sg = DV.canale("s_giro");
       const peso = new Float64Array(P.length), cont = new Float64Array(P.length);
       if (r && sg) {
@@ -149,7 +149,7 @@
         const c = S.canali.get(id);
         if (c) righe.push(el("tr", {}, el("td", {}, c.nome), el("td", { class: "n" }, DV.fmt(c.dati[S.i])), el("td", {}, c.unita)));
       }
-      const r = S.ris.mod || S.ris.orig;
+      const r = S.ris.orig || S.ris.mod;
       this.valori.innerHTML = "";
       this.valori.append(el("h3", {}, `Valori a t = ${(S.i * S.dt).toFixed(2)} s`));
       if (r) {

@@ -20,6 +20,12 @@ Formato della struttura (JSON), campi principali:
 }
 tipo: valore | curva (1D, asse_x) | mappa (2D, asse_x colonne, asse_y righe)
 ordine: "righe" = memorizzata riga per riga (y esterno, x interno), "colonne" = il contrario
+
+Più file della centralina (es. NOSLICK e SLICK):
+  "varianti": [{"nome": "NOSLICK", "sha256": "...", "file": "..."}, {"nome": "SLICK", "sha256": "..."}]
+Se due file hanno le stesse tabelle in posti diversi, "indirizzo" (e "base", "posizione", le regioni del
+checksum) può essere un oggetto per variante: "indirizzo": {"NOSLICK": "0x70F48", "SLICK": "0x71F48"}.
+risolvi(struttura, variante) restituisce la struttura con gli indirizzi della variante scelta.
 """
 from __future__ import annotations
 
@@ -47,6 +53,51 @@ def _int(x):
 def carica_struttura(percorso: str) -> dict:
     with open(percorso, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def _per_variante(x):
+    return isinstance(x, dict) and x and all(isinstance(v, (str, int)) for v in x.values()) and \
+        not any(k in x for k in ("indirizzo", "valori", "n"))
+
+
+def trova_variante(struttura, buf: bytes):
+    """Nome della variante del file, riconosciuta dall'impronta sha256 (None se non riconosciuta)."""
+    h = sha256(bytes(buf))
+    for v in struttura.get("varianti", []):
+        if v.get("sha256") and v["sha256"].lower() == h:
+            return v["nome"]
+    return None
+
+
+def risolvi(struttura, variante=None):
+    """Copia della struttura con gli indirizzi della variante; senza indirizzi per variante la ritorna uguale."""
+    nomi = [v["nome"] for v in struttura.get("varianti", [])]
+    trovati = set()
+
+    def giu(o):
+        if isinstance(o, dict):
+            out = {}
+            for k, v in o.items():
+                if k in ("indirizzo", "base", "posizione") and _per_variante(v):
+                    trovati.update(v.keys())
+                    if variante is None or variante not in v:
+                        raise KeyError(f"'{k}' dipende dalla variante ({', '.join(v)}): indica quale con --variante")
+                    out[k] = v[variante]
+                elif k == "regioni" and isinstance(v, dict):
+                    if variante not in v:
+                        raise KeyError(f"regioni del checksum per variante ({', '.join(v)}): indica quale con --variante")
+                    out[k] = v[variante]
+                else:
+                    out[k] = giu(v)
+            return out
+        if isinstance(o, list):
+            return [giu(x) for x in o]
+        return o
+    r = giu(struttura)
+    r["variante"] = variante
+    if variante and nomi and variante not in nomi and trovati and variante not in trovati:
+        raise KeyError(f"variante {variante} sconosciuta: {nomi}")
+    return r
 
 
 def base(struttura) -> int:

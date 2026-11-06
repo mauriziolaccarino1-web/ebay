@@ -2,15 +2,87 @@
 (function () {
   const DV = (window.DV = window.DV || {});
   const S = (DV.stato = {
-    sess: null, struttura: null, modello: null, binOrig: null, binMod: null, nomeOrig: "", nomeMod: "",
+    sess: null, struttura: null, modello: null,
+    // calibrazioni caricate: {nome, file (com'è su disco), lavoro (copia modificabile), variante}
+    cal: [], rif: null, cfr: null,
     canali: new Map(), n: 0, dt: 0.01, i: 0, giro: null, parametri: {},
     ris: { orig: null, mod: null }, progetto: null, server: false,
   });
+  // A = riferimento, B = confronto (copia di lavoro modificabile)
+  const calDi = (n) => S.cal.find((c) => c.nome === n) || null;
+  Object.defineProperty(S, "binOrig", { get: () => (calDi(S.rif) ? calDi(S.rif).file : null) });
+  Object.defineProperty(S, "binMod", { get: () => (calDi(S.cfr) ? calDi(S.cfr).lavoro : null) });
+  Object.defineProperty(S, "binCfrFile", { get: () => (calDi(S.cfr) ? calDi(S.cfr).file : null) });
+  Object.defineProperty(S, "nomeOrig", { get: () => S.rif || "" });
+  Object.defineProperty(S, "nomeMod", { get: () => S.cfr || "" });
+  DV.calDi = calDi;
+  // quale calibrazione mostrano Flusso e Tabelle dal vivo: "B" (default) o "A"
+  S.vistaCal = "B";
+  DV.risVista = () => (S.vistaCal === "A" ? S.ris.orig || S.ris.mod : S.ris.mod || S.ris.orig);
+  DV.bufVista = () => (S.vistaCal === "A" ? S.binOrig || S.binMod : S.binMod || S.binOrig);
+  DV.nomeVista = () => (S.vistaCal === "A" ? DV.nomeA() : DV.nomeB());
+  DV.selettoreVista = (dopo) => {
+    const s = DV.el("select", { title: "calibrazione con cui sono calcolati i valori mostrati" });
+    for (const [k, n] of [["A", `A · ${DV.nomeA()}`], ["B", `B · ${DV.nomeB()}`]]) s.append(DV.el("option", { value: k, selected: S.vistaCal === k || undefined }, n));
+    s.addEventListener("change", () => { S.vistaCal = s.value; dopo(); });
+    return DV.el("label", { class: "fila", style: { gap: "6px" } }, "calcolato con", s);
+  };
+  DV.confrontoAttivo = () => !!(S.ris.mod && S.ris.orig && (S.rif !== S.cfr || DV.lavoroModificato()));
+  // concordanza tra intervento previsto e osservato sul CAN (interventi in comune / unione)
+  DV.concordanza = (r, o) => {
+    const c = DV.canale(o.id);
+    if (!r || !c) return null;
+    const v = (o.confronta_con && r.env[o.confronta_con]) || r.logica;
+    let tp = 0, un = 0;
+    for (let i = 0; i < S.n; i++) {
+      const a = c.dati[i] > (o.soglia ?? 0.5), b = v[i] > 0.5;
+      if (a && b) tp++;
+      if (a || b) un++;
+    }
+    return un ? tp / un : 1;
+  };
+  DV.nomeA = () => S.rif || "A";
+  DV.nomeB = () => (S.cfr ? S.cfr + (DV.lavoroModificato() ? " ✎" : "") : "B");
+  DV.lavoroModificato = () => {
+    const c = calDi(S.cfr);
+    if (!c) return false;
+    for (let i = 0; i < c.file.length; i++) if (c.file[i] !== c.lavoro[i]) return true;
+    return false;
+  };
+  function assegnaVariante(c) {
+    const V = (S.struttura && S.struttura.varianti) || [];
+    if (!V.length) { c.variante = null; return; }
+    const perSha = c.sha && V.find((v) => v.sha256 && v.sha256.toLowerCase() === c.sha);
+    const v = perSha ? perSha.nome : c.varianteIndicata || DV.calib.varianteDaNome(S.struttura, c.nome) || DV.calib.varianteDaNome(S.struttura, c.fileNome);
+    c.variante = v || null;
+    c.file.variante = c.lavoro.variante = c.variante;
+    c.file.nome = c.lavoro.nome = c.nome;
+    if (!v) DV.avviso(`${c.nome}: variante non riconosciuta (varianti: ${V.map((x) => x.nome).join(", ")})`, "errore");
+  }
+  DV.aggiungiCalibrazione = async (nome, buf, opz = {}) => {
+    let sha = null;
+    try { const h = await crypto.subtle.digest("SHA-256", buf); sha = [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join(""); } catch (e) { /* senza crypto.subtle */ }
+    let nn = nome, k = 2;
+    while (calDi(nn)) nn = `${nome} (${k++})`;
+    const c = { nome: nn, file: buf, lavoro: buf.slice(), sha, fileNome: opz.file || nome, varianteIndicata: opz.variante };
+    assegnaVariante(c);
+    S.cal.push(c);
+    if (!S.rif) S.rif = nn;
+    if (!S.cfr || S.cfr === S.rif) S.cfr = nn;
+    return c;
+  };
+  DV.scegliCalibrazioni = (rif, cfr) => {
+    if (rif) S.rif = rif;
+    if (cfr) S.cfr = cfr;
+    DV.emit("calibrazione");
+    DV.ricalcola();
+  };
   DV.viste = {};
   DV.registraVista = (nome, oggetto) => (DV.viste[nome] = oggetto);
   const ascolti = {};
   DV.on = (ev, f) => (ascolti[ev] = ascolti[ev] || []).push(f);
   DV.emit = (ev, x) => (ascolti[ev] || []).forEach((f) => { try { f(x); } catch (e) { console.error(e); DV.avviso(String(e.message || e), "errore"); } });
+  DV.on("struttura", () => S.cal.forEach(assegnaVariante));
 
   DV.$ = (s, r = document) => r.querySelector(s);
   DV.$$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -93,6 +165,7 @@
       if ((quale === "entrambi" || quale === "orig") && S.binOrig) S.ris.orig = esegui(S.binOrig);
       if ((quale === "entrambi" || quale === "mod") && S.binMod) S.ris.mod = esegui(S.binMod);
       if (!S.binOrig && S.sess.modello) S.ris.orig = dalFile(S.sess.modello);
+      if (!S.binMod) S.ris.mod = null;
     } catch (e) {
       DV.avviso("ricalcolo del modello: " + e.message, "errore");
       if (S.sess.modello) S.ris.orig = dalFile(S.sess.modello);
@@ -127,10 +200,10 @@
     const nome = file.name;
     if (/\.(bin|ori|hex|mod|cal)$/i.test(nome) && !nome.endsWith(".json")) {
       const buf = new Uint8Array(await file.arrayBuffer());
-      if (!S.binOrig || /orig/i.test(nome)) { S.binOrig = buf; S.nomeOrig = nome; if (!S.binMod) { S.binMod = buf.slice(); S.nomeMod = nome + " (copia di lavoro)"; } }
-      else { S.binMod = buf; S.nomeMod = nome; }
-      DV.avviso(`file centralina: ${nome} (${(buf.length / 1024).toFixed(0)} kB)`);
+      const c = await DV.aggiungiCalibrazione(nome.replace(/\.[^.]+$/, ""), buf, { file: nome });
+      DV.avviso(`file centralina: ${c.nome} (${(buf.length / 1024).toFixed(0)} kB${c.variante ? ", variante " + c.variante : ""})`);
       DV.emit("calibrazione");
+      DV.ricalcola();
       return;
     }
     const testo = await testoDa(file);
@@ -140,13 +213,14 @@
   }
   function classificaJSON(j, nome) {
     if (j.tipo === "sessione_dvtool") { caricaSessione(j); DV.avviso(`sessione: ${nome}`); }
-    else if (j.tabelle) { S.struttura = j; DV.avviso(`struttura: ${j.nome || nome} (${j.tabelle.length} tabelle)`); DV.emit("calibrazione"); DV.ricalcola(); }
+    else if (j.tabelle) { S.struttura = j; DV.emit("struttura"); DV.avviso(`struttura: ${j.nome || nome} (${j.tabelle.length} tabelle)`); DV.emit("calibrazione"); DV.ricalcola(); }
     else if (j.blocchi || j.criteri) { S.modello = j; DV.avviso(`modello: ${j.nome || nome}`); DV.emit("sessione"); DV.ricalcola(); }
     else if (j.modifiche) { applicaPatch(j); }
     else throw new Error(`${nome}: tipo di file non riconosciuto`);
   }
   function applicaPatch(p) {
     if (!S.struttura || !S.binMod) throw new Error("per applicare una patch servono struttura e file .bin");
+    if (p.variante && S.binMod.variante && p.variante !== S.binMod.variante) throw new Error(`la patch è per la variante ${p.variante}, B è ${S.binMod.variante}`);
     const per = new Map(S.struttura.tabelle.map((t) => [t.id, t]));
     let n = 0;
     for (const m of p.modifiche) if (m.tabella && per.has(m.tabella)) { DV.calib.scrivi(S.struttura, per.get(m.tabella), S.binMod, m.valori); n++; }
@@ -179,11 +253,12 @@
         const blob = await q.blob();
         return JSON.parse(await testoDa(new File([blob], p)));
       };
-      if (P.struttura) S.struttura = await prendi(P.struttura);
+      if (P.struttura) { S.struttura = await prendi(P.struttura); DV.emit("struttura"); }
       if (P.modello) S.modello = await prendi(P.modello);
-      if (P.originale) { S.binOrig = await prendi(P.originale, "bin"); S.nomeOrig = P.originale; }
-      if (P.modificato) { S.binMod = await prendi(P.modificato, "bin"); S.nomeMod = P.modificato; }
-      else if (S.binOrig) { S.binMod = S.binOrig.slice(); S.nomeMod = "copia di lavoro"; }
+      const elenco = P.calibrazioni || [P.originale && { nome: "originale", file: P.originale }, P.modificato && { nome: "modificato", file: P.modificato }].filter(Boolean);
+      for (const c of elenco) await DV.aggiungiCalibrazione(c.nome, await prendi(c.file, "bin"), { file: c.file, variante: c.variante });
+      if (P.riferimento && calDi(P.riferimento)) S.rif = P.riferimento;
+      if (P.confronto && calDi(P.confronto)) S.cfr = P.confronto;
       DV.emit("calibrazione");
       DV.emit("progetto", P);
       if (P.sessioni && P.sessioni.length) await DV.apriSessione(P.sessioni[0]);

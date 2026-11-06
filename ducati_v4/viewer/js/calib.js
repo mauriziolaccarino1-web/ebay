@@ -9,8 +9,23 @@
   };
   const int = (x) => (typeof x === "string" ? parseInt(x, x.startsWith("0x") || x.startsWith("0X") ? 16 : 10) : x | 0);
   const le = (e) => e === undefined || e === "le" || e === "little";
-
-  function base(S) { return int((S.file && S.file.base) || 0); }
+  // indirizzi per variante: {"NOSLICK": "0x...", "SLICK": "0x..."}; la variante sta sul buffer (buf.variante)
+  function ind(x, buf, cosa = "indirizzo") {
+    if (x && typeof x === "object" && !Array.isArray(x)) {
+      const v = buf && buf.variante;
+      if (!v || !(v in x)) throw new Error(`${cosa} dipende dalla variante (${Object.keys(x).join(", ")}): il file ${buf && buf.nome ? buf.nome : ""} non ha una variante riconosciuta`);
+      return int(x[v]);
+    }
+    return int(x);
+  }
+  function base(S, buf) { return S.file && S.file.base !== undefined ? ind(S.file.base, buf, "base") : 0; }
+  // copia di un file con nome e variante
+  function copia(buf) { const c = buf.slice(); c.variante = buf.variante; c.nome = buf.nome; return c; }
+  function varianteDaNome(S, nome) {
+    const v = ((S && S.varianti) || []).map((x) => x.nome).sort((a, b) => b.length - a.length);
+    const n = String(nome || "").toUpperCase();
+    return v.find((x) => n.includes(x.toUpperCase())) || null;
+  }
 
   function dim(tab) {
     const t = tab.tipo || "mappa";
@@ -30,18 +45,18 @@
     if (spec.valori) return { valori: spec.valori.slice(), unita: spec.unita || "", nome: spec.nome || nome, segnale: spec.segnale, spec };
     const [w, get] = TIPI[spec.dtype || "u16"];
     const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-    const off = int(spec.indirizzo) - base(S);
+    const off = ind(spec.indirizzo, buf) - base(S, buf);
     const n = spec.n || nAtteso;
     const v = [];
     for (let i = 0; i < n; i++) v.push(dv[get](off + i * w, le(spec.endian)) * (spec.scala ?? 1) + (spec.offset ?? 0));
-    return { valori: v, unita: spec.unita || "", nome: spec.nome || nome, segnale: spec.segnale, indirizzo: int(spec.indirizzo), spec };
+    return { valori: v, unita: spec.unita || "", nome: spec.nome || nome, segnale: spec.segnale, indirizzo: ind(spec.indirizzo, buf), spec };
   }
 
   function leggi(S, tab, buf) {
     const [r, c] = dim(tab);
     const [w, get] = TIPI[tab.dtype || "u16"];
     const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-    const off = int(tab.indirizzo) - base(S);
+    const off = ind(tab.indirizzo, buf) - base(S, buf);
     const z = [];
     for (let i = 0; i < r; i++) z.push(new Array(c));
     for (let k = 0; k < r * c; k++) {
@@ -59,7 +74,7 @@
     const [r, c] = dim(tab);
     const [w, , set, lo, hi] = TIPI[tab.dtype || "u16"];
     const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-    const off = int(tab.indirizzo) - base(S);
+    const off = ind(tab.indirizzo, buf) - base(S, buf);
     let sat = 0;
     for (let k = 0; k < r * c; k++) {
       const [i, j] = tab.ordine === "colonne" ? [k % r, Math.floor(k / r)] : [Math.floor(k / c), k % c];
@@ -147,13 +162,14 @@
     return v >>> 0;
   }
   function dati(buf, spec, b) {
-    const pos = int(spec.posizione) - b;
+    const pos = ind(spec.posizione, buf, "posizione") - b;
+    const reg = Array.isArray(spec.regioni) ? spec.regioni : spec.regioni[buf.variante];
     const larg = FMT[spec.formato || "u32le"][0];
     const escl = (spec.escludi || []).map(([a, c]) => [int(a) - b, int(c) - b]);
     escl.push([pos, pos + larg]);
     escl.sort((p, q) => p[0] - q[0]);
     const pezzi = [];
-    for (const [a0, b0] of spec.regioni) {
+    for (const [a0, b0] of reg) {
       const a = int(a0) - b, e = int(b0) - b;
       let cur = a;
       for (const [ea, eb] of escl) {
@@ -170,22 +186,22 @@
     return out;
   }
   function verifica(S, buf) {
-    const b = base(S);
+    const b = base(S, buf);
     return (S.checksum || []).map((spec) => {
       const [v, bit] = calcola(spec.algoritmo, dati(buf, spec, b));
       const [larg, get] = FMT[spec.formato || "u32le"];
       const atteso = complementa(v, bit, spec.complemento || "nessuno") & (larg === 4 ? 0xffffffff : (1 << (8 * larg)) - 1);
       const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-      const salvato = dv[get](int(spec.posizione) - b, FMT[spec.formato || "u32le"][3]);
+      const salvato = dv[get](ind(spec.posizione, buf, "posizione") - b, FMT[spec.formato || "u32le"][3]);
       return { id: spec.id, salvato: salvato >>> 0, calcolato: atteso >>> 0, ok: salvato >>> 0 === atteso >>> 0 };
     });
   }
   function correggi(S, buf) {
-    const b = base(S);
+    const b = base(S, buf);
     const ris = verifica(S, buf);
     (S.checksum || []).forEach((spec, i) => {
       const [, , set, L] = FMT[spec.formato || "u32le"];
-      new DataView(buf.buffer, buf.byteOffset, buf.byteLength)[set](int(spec.posizione) - b, ris[i].calcolato, L);
+      new DataView(buf.buffer, buf.byteOffset, buf.byteLength)[set](ind(spec.posizione, buf, "posizione") - b, ris[i].calcolato, L);
     });
     return verifica(S, buf);
   }
@@ -218,5 +234,13 @@
     return ax.length < 2 ? 0 : i + f;
   }
 
-  DV.calib = { leggi, scrivi, dim, quantizza, verifica, correggi, calcola, lookup1, lookup2, posizione, base, int, TIPI };
+  // uguali? (stesse dimensioni e valori)
+  function uguali(S, tab, a, b) {
+    try {
+      const A = leggi(S, tab, a).z, B = leggi(S, tab, b).z;
+      if (A.length !== B.length || A[0].length !== B[0].length) return false;
+      return A.every((r, i) => r.every((v, j) => v === B[i][j]));
+    } catch (e) { return false; }
+  }
+  DV.calib = { leggi, scrivi, dim, quantizza, verifica, correggi, calcola, lookup1, lookup2, posizione, base, int, TIPI, copia, varianteDaNome, uguali, ind };
 })();

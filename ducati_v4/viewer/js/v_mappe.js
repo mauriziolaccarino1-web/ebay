@@ -14,10 +14,15 @@
     for (const b of (S.modello && S.modello.blocchi) || []) if (b.tipo === "tabella") m.set(DV.modello.nomeTabella(b.tabella, S.parametri), b.id);
     return m;
   }
+  // B (copia di lavoro) diversa da A?
   function diversa(tab) {
     if (!S.binOrig || !S.binMod) return false;
-    const a = DV.calib.leggi(S.struttura, tab, S.binOrig).z, b = DV.calib.leggi(S.struttura, tab, S.binMod).z;
-    return a.some((r, i) => r.some((v, j) => v !== b[i][j]));
+    return !DV.calib.uguali(S.struttura, tab, S.binOrig, S.binMod);
+  }
+  // copia di lavoro di B modificata rispetto al file B?
+  function editata(tab) {
+    if (!S.binCfrFile || !S.binMod) return false;
+    return !DV.calib.uguali(S.struttura, tab, S.binCfrFile, S.binMod);
   }
 
   // densità d'uso: pesi bilineari accumulati sulle celle nel tratto scelto
@@ -78,7 +83,8 @@
               el("span", { class: "id" }, t.id),
               el("span", { class: "fila", style: { gap: "4px" } }, el("span", { class: "nota" }, `${t.nome || ""} · ${rr}×${cc}`),
                 inUso.has(t.id) ? el("span", { class: "badge uso", title: "letta dal blocco " + inUso.get(t.id) }, "in uso") : null,
-                S.binOrig && diversa(t) ? el("span", { class: "badge mod" }, "modificata") : null,
+                S.binOrig && S.rif !== S.cfr && diversa(t) ? el("span", { class: "badge", title: `${DV.nomeB()} diversa da ${DV.nomeA()}` }, "≠ A") : null,
+                editata(t) ? el("span", { class: "badge mod", title: "modificata nella copia di lavoro" }, "✎ modificata") : null,
                 t.verificato === false ? el("span", { class: "badge" }, "da verificare") : null));
             v.addEventListener("click", () => { corrente = t.id; sel = null; this.disegna(); });
             corpo.append(v);
@@ -110,14 +116,14 @@
           el("h3", {}, `${tab.id} · ${tab.nome || ""}`),
           el("span", { class: "fila" }, inUso.has(tab.id) ? el("span", { class: "badge uso" }, `in uso ora (blocco ${inUso.get(tab.id)})`) :
             famiglia ? el("span", { class: "badge" }, `non in uso con i parametri attuali ${JSON.stringify(S.parametri)}`) : el("span", { class: "badge" }, "non letta dal modello"))),
-        el("div", { class: "nota" }, `${tab.descrizione || ""} · indirizzo ${tab.indirizzo} · ${tab.dtype || "u16"} ${tab.endian || "le"} · scala ${tab.scala ?? 1} · offset ${tab.offset ?? 0} · unità ${tab.unita || "–"}` +
+        el("div", { class: "nota" }, `${tab.descrizione || ""} · indirizzo ${typeof tab.indirizzo === "object" ? Object.entries(tab.indirizzo).map(([k, v]) => k + " " + v).join(", ") : tab.indirizzo} · ${tab.dtype || "u16"} ${tab.endian || "le"} · scala ${tab.scala ?? 1} · offset ${tab.offset ?? 0} · unità ${tab.unita || "–"}` +
           (To.x ? ` · asse x: ${To.x.nome || ""} ${To.x.unita || ""}${To.x.segnale ? " ← " + To.x.segnale : ""}` : "") + (To.y ? ` · asse y: ${To.y.nome || ""} ${To.y.unita || ""}${To.y.segnale ? " ← " + To.y.segnale : ""}` : "") +
           (tab.fonte ? ` · fonte: ${tab.fonte}` : "")),
         altriLivelli.length ? el("div", { class: "nota" }, "Stessa famiglia in uso: " + altriLivelli.join(", ")) : null);
       C.append(testa);
       // modi
       const modi = el("div", { class: "strumenti" });
-      for (const [k, n] of [["valori", "Valori"], ["differenza", "Modificata − originale"], ["uso", "Dove lavora (registrato)"], ["3d", "Superficie 3D"]]) {
+      for (const [k, n] of [["valori", `Valori (${DV.nomeB()})`], ["differenza", `B − A (${DV.nomeB()} − ${DV.nomeA()})`], ["uso", "Dove lavora (registrato)"], ["3d", "Superficie 3D"]]) {
         if (k === "3d" && tab.tipo !== "mappa") continue;
         const b = el("button", { class: "bottone" + (modo === k ? " attivo" : "") }, n);
         b.addEventListener("click", () => { modo = k; this.disegnaTabella(); });
@@ -160,7 +166,7 @@
           else { const f = mx > mn ? (vm - mn) / (mx - mn) : 0; fondo = DV.seq(f); testo = vm.toFixed(dec); }
           const f2 = modo === "valori" ? (mx > mn ? (vm - mn) / (mx - mn) : 0) : modo === "uso" && U && umax ? 0.15 + 0.85 * (U.D[i][j] / umax) : 0;
           const td = el("td", { style: { background: fondo, color: DV.inkSu(f2) || "" }, class: d ? "cambiata" : "", "data-i": i, "data-j": j }, testo);
-          td.addEventListener("mouseenter", (e) => DV.tooltip(e, `<b>${To.y ? `${To.y.unita} ${DV.fmt(To.y.valori[i], 2)} · ` : ""}${To.x ? `${To.x.unita} ${DV.fmt(To.x.valori[j], 2)}` : ""}</b><br>originale ${vo.toFixed(dec)} · modificata ${vm.toFixed(dec)}${d ? ` (${d > 0 ? "+" : ""}${d.toFixed(dec)}${vo ? `, ${((d / Math.abs(vo)) * 100).toFixed(1)}%` : ""})` : ""}${U ? `<br>uso ${((U.D[i][j] / Math.max(1, U.tot)) * 100).toFixed(2)}% del tempo` : ""}`));
+          td.addEventListener("mouseenter", (e) => DV.tooltip(e, `<b>${To.y ? `${To.y.unita} ${DV.fmt(To.y.valori[i], 2)} · ` : ""}${To.x ? `${To.x.unita} ${DV.fmt(To.x.valori[j], 2)}` : ""}</b><br>A ${DV.nomeA()} ${vo.toFixed(dec)} · B ${DV.nomeB()} ${vm.toFixed(dec)}${d ? ` (${d > 0 ? "+" : ""}${d.toFixed(dec)}${vo ? `, ${((d / Math.abs(vo)) * 100).toFixed(1)}%` : ""})` : ""}${U ? `<br>uso ${((U.D[i][j] / Math.max(1, U.tot)) * 100).toFixed(2)}% del tempo` : ""}`));
           td.addEventListener("mouseleave", (e) => DV.tooltip(e, null));
           riga.push(td);
           tr.append(td);
@@ -179,7 +185,7 @@
       cont.append(this.svg);
       dove.append(cont, el("div", { class: "nota", style: { marginTop: "6px" } },
         modo === "uso" ? (U ? `Percentuale del tempo (${S.giro ? "giro scelto" : "sessione"}) in cui la centralina legge ogni cella, pesata come l'interpolazione. Il punto è l'istante del cursore, la scia gli ultimi 3 s.` : "Questa tabella non è letta dal modello con i parametri attuali, oppure manca la sessione.")
-          : "Colore = valore (scala blu). Riga arancio sotto la cella = modificata. Trascina per selezionare; il punto blu è dove legge la centralina all'istante del cursore, la scia gli ultimi 3 s."));
+          : "Colore = valore di B (scala blu). Riga arancio sotto la cella = diversa da A. Trascina per selezionare; il punto blu è dove legge la centralina all'istante del cursore, la scia gli ultimi 3 s."));
       this.aggiornaSel();
     },
 
@@ -212,7 +218,7 @@
       });
       window.addEventListener("mouseup", () => { if (trascina !== null) { trascina = null; this.dopoModifica(); } });
       requestAnimationFrame(() => this.disegnaCurva());
-      dove.append(el("div", { class: "nota" }, "Curva grigia = originale, blu = modificata. Trascina i punti in verticale per modificare; la linea verticale è il valore letto all'istante del cursore."));
+      dove.append(el("div", { class: "nota" }, `Curva grigia = A (${DV.nomeA()}), blu = B (${DV.nomeB()}). Trascina i punti in verticale per modificare; la linea verticale è il valore letto all'istante del cursore.`));
     },
     disegnaCurva() {
       const cv = this.cvCurva, To = this.To, Tm = this.Tm;
@@ -263,7 +269,7 @@
 
     superficie(dove, To, Tm) {
       const cv = el("canvas", { class: "tela", style: { height: "380px", cursor: "grab" } });
-      dove.append(cv, el("div", { class: "nota" }, "Trascina per ruotare. Grigio = originale, blu = modificata."));
+      dove.append(cv, el("div", { class: "nota" }, `Trascina per ruotare. Grigio = A (${DV.nomeA()}), blu = B (${DV.nomeB()}).`));
       let ini = null;
       cv.addEventListener("mousedown", (e) => (ini = [e.clientX, e.clientY, vista3d.az, vista3d.el]));
       window.addEventListener("mousemove", (e) => { if (!ini) return; vista3d.az = ini[2] + (e.clientX - ini[0]) / 150; vista3d.el = Math.max(0.05, Math.min(1.5, ini[3] + (e.clientY - ini[1]) / 150)); disegna(); });
@@ -320,11 +326,12 @@
           B("× %", "aumenta/diminuisce in percentuale (es. 10 = +10%, -5 = -5%)", (Z, s, v) => per(Z, s, (i, j) => (Z[i][j] *= 1 + v / 100))),
           B("interpola", "riga per riga: dal primo all'ultimo valore della selezione", (Z, s) => { for (let i = s[0]; i <= s[2]; i++) { const a = Z[i][s[1]], b = Z[i][s[3]], n = s[3] - s[1]; for (let j = s[1]; j <= s[3]; j++) Z[i][j] = n ? a + ((b - a) * (j - s[1])) / n : a; } }),
           B("liscia", "media con le celle vicine", (Z, s) => { const C = Z.map((r) => r.slice()); per(Z, s, (i, j) => { let t = 0, n = 0; for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) { const r = C[i + di]; if (r && r[j + dj] !== undefined) { t += r[j + dj]; n++; } } Z[i][j] = t / n; }); }),
-          B("↺ originale", "riporta la selezione ai valori originali", (Z, s) => per(Z, s, (i, j) => (Z[i][j] = this.To.z[i][j])))),
+          B("↺ da A", "copia nella selezione i valori di A", (Z, s) => per(Z, s, (i, j) => (Z[i][j] = this.To.z[i][j]))),
+          B("↺ file B", "riporta la selezione ai valori del file B (annulla le modifiche)", (Z, s) => { const F = DV.calib.leggi(S.struttura, tab, S.binCfrFile).z; per(Z, s, (i, j) => (Z[i][j] = F[i][j])); })),
         el("div", { class: "strumenti" }, this.infoSel,
           (() => { const b = el("button", { class: "bottone" }, "annulla"); b.addEventListener("click", () => { const u = annulla.pop(); if (!u) return; const t = S.struttura.tabelle.find((x) => x.id === u.id); DV.calib.scrivi(S.struttura, t, S.binMod, u.z); this.dopoModifica(); }); return b; })(),
           (() => { const b = el("button", { class: "bottone" }, "deseleziona"); b.addEventListener("click", () => { sel = null; this.aggiornaSel(); }); return b; })()),
-        el("div", { class: "nota" }, "Ogni modifica viene arrotondata al passo reale del dato in centralina e ricalcola subito i criteri sulla sessione aperta (scheda Criteri: originale → modificata)."));
+        el("div", { class: "nota" }, "Ogni modifica viene arrotondata al passo reale del dato in centralina e ricalcola subito i criteri sulla sessione aperta (scheda Criteri: A → B)."));
       this.aggiornaSel();
       return box;
     },
@@ -340,23 +347,22 @@
       const box = el("div", { class: "pannello" });
       if (!S.binMod) return box;
       const v = DV.calib.verifica(S.struttura, S.binMod);
-      const cambi = S.struttura.tabelle.filter((t) => diversa(t));
-      box.append(el("h3", {}, "File modificato"),
-        el("div", { class: "nota" }, `${cambi.length} tabelle diverse dall'originale${cambi.length ? ": " + cambi.map((t) => t.id).join(", ") : ""}.`),
+      const cambi = S.struttura.tabelle.filter((t) => editata(t));
+      box.append(el("h3", {}, `Copia di lavoro di ${S.cfr}${S.binMod.variante ? " (variante " + S.binMod.variante + ")" : ""}`),
+        el("div", { class: "nota" }, `${cambi.length} tabelle modificate rispetto al file ${S.cfr}${cambi.length ? ": " + cambi.map((t) => t.id).join(", ") : ""}.`),
         el("div", { class: "nota" }, v.length ? "Checksum: " + v.map((x) => `${x.id} ${x.ok ? "ok" : "da correggere (verrà corretto all'esportazione)"}`).join(", ") : "ATTENZIONE: nessun checksum nella struttura: il file esportato NON è pronto per la centralina."));
       const bBin = el("button", { class: "bottone primario" }, "Scarica .bin modificato");
       bBin.addEventListener("click", () => {
-        const copia = S.binMod.slice();
+        const copia = DV.calib.copia(S.binMod);
         const r = DV.calib.correggi(S.struttura, copia);
         if (r.some((x) => !x.ok)) { DV.avviso("checksum non corretto: file non esportato", "errore"); return; }
-        DV.scarica((S.nomeOrig || "centralina").replace(/\.\w+$/, "") + "_mod.bin", copia);
+        DV.scarica((S.cfr || "centralina") + "_mod.bin", copia);
       });
       const bPatch = el("button", { class: "bottone" }, "Scarica patch .json");
       bPatch.addEventListener("click", async () => {
         const mod = cambi.map((t) => ({ tabella: t.id, valori: DV.calib.leggi(S.struttura, t, S.binMod).z }));
-        let sha = null;
-        try { const h = await crypto.subtle.digest("SHA-256", S.binOrig); sha = [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join(""); } catch (e) { /* file:// senza crypto.subtle */ }
-        DV.scarica("patch.json", JSON.stringify({ base_sha256: sha, creato: new Date().toISOString(), modifiche: mod }, null, 1), "application/json");
+        const c = DV.calDi(S.cfr);
+        DV.scarica(`patch_${S.cfr}.json`, JSON.stringify({ base: S.cfr, base_sha256: c.sha, variante: c.variante, creato: new Date().toISOString(), modifiche: mod }, null, 1), "application/json");
       });
       box.append(el("div", { class: "strumenti" }, bBin, bPatch),
         el("div", { class: "nota" }, "Consigliato: applica la patch con «python -m dvtool calib applica» che riscrive le tabelle, corregge e verifica il checksum e controlla che il file di partenza sia quello giusto."));

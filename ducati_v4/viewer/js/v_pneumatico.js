@@ -82,7 +82,7 @@
         const p = pr.def;
         const carta = el("div", { class: "pannello", style: { marginBottom: "12px" } });
         carta.append(el("h3", {}, `${p.ruota || p.id} · ${p.misura || ""} · tabella ${p.tabella}`),
-          el("div", { class: "nota" }, `R0 = ${p.R0_mm} mm a moto dritta. Grigio = originale, blu = modificata. Il punto è il contatto all'angolo di piega del cursore.`));
+          el("div", { class: "nota" }, `R0 = ${p.R0_mm} mm a moto dritta. Grigio = A (${DV.nomeA()}), blu = B (${DV.nomeB()}). Il punto è il contatto all'angolo di piega del cursore.`));
         const fila = el("div", { class: "fila", style: { alignItems: "stretch" } });
         const sez = el("div", { style: { flex: "1 1 380px" } });
         const gr = el("div", { style: { flex: "1 1 420px" } });
@@ -90,7 +90,7 @@
         carta.append(fila);
         // generatore toroidale
         const r0 = el("input", { type: "number", value: p.R0_mm, step: "0.1" }), rc = el("input", { type: "number", value: "100", step: "1" });
-        const b = el("button", { class: "bottone" }, "applica alla copia di lavoro");
+        const b = el("button", { class: "bottone" }, `applica a B (${S.cfr})`);
         b.addEventListener("click", () => {
           const phi = pr.mod.phi;
           const R = phi.map((f) => +r0.value - +rc.value * (1 - Math.cos(f * RAD)));
@@ -111,15 +111,15 @@
         const pg = DV.canale("piega");
         DV.grafico(gr, {
           titolo: "Raggio di rotolamento in funzione della piega", x: Float64Array.from(phiD), gruppo: "pneu-" + p.id, unita: "mm", etichettaX: "piega (°)",
-          serie: [{ nome: "originale", dati: Float64Array.from(Ro), colore: DV.colore("--tenue"), unita: "mm" }, { nome: "modificata", dati: Float64Array.from(Rm), colore: DV.colore("--s1"), unita: "mm" }],
+          serie: [{ nome: DV.nomeA(), dati: Float64Array.from(Ro), colore: DV.colore("--tenue"), unita: "mm" }, { nome: DV.nomeB(), dati: Float64Array.from(Rm), colore: DV.colore("--s1"), unita: "mm" }],
           xDi: pg ? (i) => Math.abs(pg.dati[i]) : null, alClic: () => {}, altezza: 190,
         });
         const corr = el("div");
         gr.append(corr);
         DV.grafico(corr, {
           titolo: "Correzione della velocità ruota (R/R0 − 1)", x: Float64Array.from(phiD), gruppo: "pneu-" + p.id, unita: "%", etichettaX: "piega (°)",
-          serie: [{ nome: "originale", dati: Float64Array.from(Ro.map((v) => (v / p.R0_mm - 1) * 100)), colore: DV.colore("--tenue"), unita: "%" },
-            { nome: "modificata", dati: Float64Array.from(Rm.map((v) => (v / p.R0_mm - 1) * 100)), colore: DV.colore("--s1"), unita: "%" }],
+          serie: [{ nome: DV.nomeA(), dati: Float64Array.from(Ro.map((v) => (v / p.R0_mm - 1) * 100)), colore: DV.colore("--tenue"), unita: "%" },
+            { nome: DV.nomeB(), dati: Float64Array.from(Rm.map((v) => (v / p.R0_mm - 1) * 100)), colore: DV.colore("--s1"), unita: "%" }],
           xDi: pg ? (i) => Math.abs(pg.dati[i]) : null, alClic: () => {}, altezza: 150,
         });
       }
@@ -137,8 +137,8 @@
           return (rm / ro - 1) * 100;
         });
         const g1 = el("div");
-        box.append(el("h3", {}, "Effetto della modifica sullo slittamento calcolato"),
-          el("div", { class: "nota" }, "A parità di ruote, quanto cambia lo slittamento posteriore che la centralina calcola, in punti percentuali, in funzione della piega. Positivo = la centralina vede più slittamento (interviene prima)."), g1);
+        box.append(el("h3", {}, "Effetto di B rispetto ad A sullo slittamento calcolato"),
+          el("div", { class: "nota" }, `Passando da A (${DV.nomeA()}) a B (${DV.nomeB()}), a parità di ruote, quanto cambia lo slittamento posteriore che la centralina calcola, in punti percentuali, in funzione della piega. Positivo = con B la centralina vede più slittamento (interviene prima).`), g1);
         const pg = DV.canale("piega");
         const emax = Math.max(1, ...eff.map(Math.abs)) * 1.2;
         DV.grafico(g1, { x: Float64Array.from(phiD), gruppo: "pneu-eff", unita: "punti %", etichettaX: "piega (°)", altezza: 170, y: [-emax, emax],
@@ -152,10 +152,10 @@
           const xs = ro.map((x) => x.piega);
           const mapM = new Map((rm || []).map((x) => [x.piega, x.mediana]));
           DV.grafico(g2, { x: Float64Array.from(xs), gruppo: "pneu-res", unita: "%", etichettaX: "piega (°)", altezza: 190,
-            serie: [{ nome: "con profilo originale", dati: Float64Array.from(ro.map((x) => x.mediana)), colore: DV.colore("--tenue"), unita: "%" },
-              { nome: "con profilo modificato", dati: Float64Array.from(xs.map((x) => mapM.get(x) ?? NaN)), colore: DV.colore("--s1"), unita: "%" }],
+            serie: [{ nome: `con profilo ${DV.nomeA()}`, dati: Float64Array.from(ro.map((x) => x.mediana)), colore: DV.colore("--tenue"), unita: "%" },
+              { nome: `con profilo ${DV.nomeB()}`, dati: Float64Array.from(xs.map((x) => mapM.get(x) ?? NaN)), colore: DV.colore("--s1"), unita: "%" }],
             alClic: () => {} });
-          box.append(el("table", { class: "dati", style: { maxWidth: "520px" } }, el("thead", {}, el("tr", {}, el("th", { class: "n" }, "piega °"), el("th", { class: "n" }, "campioni"), el("th", { class: "n" }, "originale %"), el("th", { class: "n" }, "modificato %"))),
+          box.append(el("table", { class: "dati", style: { maxWidth: "520px" } }, el("thead", {}, el("tr", {}, el("th", { class: "n" }, "piega °"), el("th", { class: "n" }, "campioni"), el("th", { class: "n" }, `${DV.nomeA()} %`), el("th", { class: "n" }, `${DV.nomeB()} %`))),
             el("tbody", {}, ro.map((x) => el("tr", {}, el("td", { class: "n" }, x.piega.toFixed(1)), el("td", { class: "n" }, String(x.n)), el("td", { class: "n" }, x.mediana.toFixed(2)), el("td", { class: "n" }, DV.fmt(mapM.get(x.piega))))))));
         } else box.append(el("p", { class: "nota" }, "Per la verifica sul registrato servono i canali v_ant, v_post, piega (e gas) nella sessione, con abbastanza tratti in rilascio."));
       }
@@ -196,7 +196,7 @@
         const L = 80, dx = Math.cos(f * RAD), dy = -Math.sin(f * RAD);
         svg += `<line x1="${X(yc - L * dx)}" y1="${Y(rcv - L * dy)}" x2="${X(yc + L * dx)}" y2="${Y(rcv + L * dy)}" stroke="${DV.colore("--testo-2")}" stroke-width="1.5"/>`;
         svg += `<circle cx="${X(yc)}" cy="${Y(rcv)}" r="6" fill="${DV.colore("--s2")}" stroke="${DV.colore("--superficie")}" stroke-width="2"/>`;
-        testo = `piega ${phiC.toFixed(1)}° · R ${rcv.toFixed(1)} mm (originale ${Ro.toFixed(1)}, ${(rcv - Ro >= 0 ? "+" : "") + (rcv - Ro).toFixed(1)}) · contatto a ${yc.toFixed(0)} mm dal centro`;
+        testo = `piega ${phiC.toFixed(1)}° · R ${rcv.toFixed(1)} mm (${DV.nomeA()} ${Ro.toFixed(1)}, ${(rcv - Ro >= 0 ? "+" : "") + (rcv - Ro).toFixed(1)}) · contatto a ${yc.toFixed(0)} mm dal centro`;
       }
       svg += `<text x="10" y="16" font-size="11" fill="${DV.colore("--testo-2")}">sezione ricostruita dal profilo (mm)</text></svg>`;
       sez.innerHTML = svg;

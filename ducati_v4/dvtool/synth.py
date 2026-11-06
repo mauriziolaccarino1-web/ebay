@@ -4,7 +4,8 @@ ATTENZIONE: pista, protocollo CAN, tabelle e modello generati qui sono INVENTATI
 Non sono il protocollo Ducati né la calibrazione della centralina: servono solo a collaudare gli strumenti.
 
   python -m dvtool demo --out esempi/demo
-crea: demo.dbc, demo_log.candump, demo_originale.bin, demo_modificato.bin, struttura_demo.json,
+crea: demo.dbc, demo_log.candump, demo_NOSLICK.bin (quella montata nel registrato), demo_SLICK.bin (più libera),
+      struttura_demo.json (con indirizzi per variante sui profili pneumatico),
       modello_demo.json, profilo_demo.json, patch_demo.json
 """
 from __future__ import annotations
@@ -222,6 +223,8 @@ ASSE_PROF = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
 
 def struttura_demo():
     S = {"nome": "DEMO – centralina inventata (non Ducati)", "file": {"base": "0x0", "dimensione": 65536},
+         "varianti": [{"nome": "NOSLICK", "descrizione": "gomme stradali, montata nel registrato"},
+                      {"nome": "SLICK", "descrizione": "gomme slick, più libera (profili pneumatico in altri indirizzi)"}],
          "checksum": [{"id": "CS_DEMO", "algoritmo": "sum32_le", "regioni": [["0x0", "0x10000"]],
                        "posizione": "0xFFFC", "formato": "u32le", "complemento": "nessuno"}],
          "assi": {
@@ -253,10 +256,10 @@ def struttura_demo():
          "dtype": "u8", "scala": 0.5, "unita": "%", "righe": 11, "colonne": 8, "asse_x": "ASSE_ECCESSO", "asse_y": "ASSE_PIEGA",
          "verificato": True, "fonte": "demo"},
         {"id": "DEMO_PROFILO_POST", "nome": "Profilo pneumatico posteriore", "gruppo": "Pneumatici", "tipo": "curva",
-         "indirizzo": "0x2600", "dtype": "u16", "endian": "le", "scala": 0.1, "unita": "mm", "colonne": 13, "asse_x": "ASSE_PROF",
+         "indirizzo": {"NOSLICK": "0x2600", "SLICK": "0x2680"}, "dtype": "u16", "endian": "le", "scala": 0.1, "unita": "mm", "colonne": 13, "asse_x": "ASSE_PROF",
          "descrizione": "Raggio di rotolamento in funzione della piega", "verificato": True, "fonte": "demo"},
         {"id": "DEMO_PROFILO_ANT", "nome": "Profilo pneumatico anteriore", "gruppo": "Pneumatici", "tipo": "curva",
-         "indirizzo": "0x2640", "dtype": "u16", "endian": "le", "scala": 0.1, "unita": "mm", "colonne": 13, "asse_x": "ASSE_PROF",
+         "indirizzo": {"NOSLICK": "0x2640", "SLICK": "0x26C0"}, "dtype": "u16", "endian": "le", "scala": 0.1, "unita": "mm", "colonne": 13, "asse_x": "ASSE_PROF",
          "verificato": True, "fonte": "demo"},
     ]
     S["profili_pneumatico"] = [
@@ -267,7 +270,9 @@ def struttura_demo():
     return S
 
 
-def bin_demo(S):
+def bin_demo(S, variante="NOSLICK"):
+    """S = struttura GIÀ risolta per la variante (calib.risolvi). SLICK: soglie più alte, taglio più dolce, profilo slick."""
+    slick = variante == "SLICK"
     buf = bytearray(b"\xFF" * 0x10000)
     for nome, ax, sc in (("ASSE_PIEGA", ASSE_PIEGA, 0.1), ("ASSE_GIRI", ASSE_GIRI, 1), ("ASSE_V", ASSE_V, 0.1),
                          ("ASSE_ECCESSO", ASSE_ECCESSO, 0.01), ("ASSE_PROF", ASSE_PROF, 0.1)):
@@ -279,15 +284,17 @@ def bin_demo(S):
     Rg = np.array(ASSE_GIRI, float)[None, :]
     for liv, fatt in ((1, 1.3), (2, 1.0), (3, 0.8)):
         z = fatt * (13.0 - 7.0 * (P / 65) ** 1.3) * (1 + 0.15 * (Rg - 8000) / 6000)
+        if slick:
+            z = z * (1.15 + 0.25 * (P / 65))   # più libera, soprattutto in piega
         calib.scrivi_tabella(S, per[f"DEMO_SOGLIA_SLIP_L{liv}"], buf, z)
-    calib.scrivi_tabella(S, per["DEMO_PIEGA_MIN"], buf, [[30, 28, 26, 24, 22, 20, 18, 18]])
+    calib.scrivi_tabella(S, per["DEMO_PIEGA_MIN"], buf, [[34, 32, 30, 28, 26, 24, 22, 22]] if slick else [[30, 28, 26, 24, 22, 20, 18, 18]])
     calib.scrivi_tabella(S, per["DEMO_GAS_MIN"], buf, [[15.0]])
     calib.scrivi_tabella(S, per["DEMO_SOGLIA_DSLIP"], buf, [[60, 55, 50, 45, 40, 40]])
     E = np.array(ASSE_ECCESSO, float)[None, :]
-    calib.scrivi_tabella(S, per["DEMO_TAGLIO"], buf, np.clip(4 * E * (1 + P / 60), 0, 100))
+    calib.scrivi_tabella(S, per["DEMO_TAGLIO"], buf, np.clip((3 if slick else 4) * E * (1 + P / 60), 0, 100))
     ph = np.array(ASSE_PROF, float)
-    # profili in centralina: un po' diversi da quelli veri (come una gomma diversa dall'originale)
-    calib.scrivi_tabella(S, per["DEMO_PROFILO_POST"], buf, [raggio_reale(ph, R0_POST, 104.0)])
+    # profili in centralina: NOSLICK un po' diverso dalla gomma montata, SLICK profilo da slick (corona più ampia)
+    calib.scrivi_tabella(S, per["DEMO_PROFILO_POST"], buf, [raggio_reale(ph, R0_POST, 125.0 if slick else 104.0)])
     calib.scrivi_tabella(S, per["DEMO_PROFILO_ANT"], buf, [raggio_reale(ph, R0_ANT, 70.0)])
     calib.correggi_checksum(S, buf)
     return buf
@@ -361,10 +368,12 @@ def genera(cartella: str, seme=7):
     os.makedirs(cartella, exist_ok=True)
     sim = simula(seme)
     S = struttura_demo()
-    buf = bin_demo(S)
-    # la "centralina vera" del demo: il modello con la calibrazione ORIGINALE (profilo pneumatico diverso dalla gomma vera)
+    Sn, Ss = calib.risolvi(S, "NOSLICK"), calib.risolvi(S, "SLICK")
+    buf = bin_demo(Sn, "NOSLICK")
+    buf_s = bin_demo(Ss, "SLICK")
+    # la "centralina vera" del demo monta la NOSLICK (profilo pneumatico un po' diverso dalla gomma vera)
     segn = {k: sim[k] for k in ("v_ant", "v_post", "piega", "giri", "gas", "marcia")}
-    ris = model.esegui(MODELLO_DEMO, segn, sim["t"], S, bytes(buf))
+    ris = model.esegui(MODELLO_DEMO, segn, sim["t"], Sn, bytes(buf))
     tc = ris["logica"]
     taglio = ris["uscite"]["taglio"]
     farfalla = np.clip(sim["gas"] * (1 - taglio / 100), 0, 100)
@@ -390,19 +399,14 @@ def genera(cartella: str, seme=7):
             fh.write(f"({ti:.6f}) can0 {ii:03X}#{dd.tobytes().hex().upper()}\n")
     with open(os.path.join(cartella, "demo.dbc"), "w", encoding="ascii") as fh:
         fh.write(DBC_DEMO)
-    with open(os.path.join(cartella, "demo_originale.bin"), "wb") as fh:
+    with open(os.path.join(cartella, "demo_NOSLICK.bin"), "wb") as fh:
         fh.write(buf)
-    # file "modificato": soglie livello 2 +20 % sopra i 40 gradi, profilo posteriore riportato al vero
-    per = {x["id"]: x for x in S["tabelle"]}
-    mod = bytearray(buf)
-    z = calib.leggi_tabella(S, per["DEMO_SOGLIA_SLIP_L2"], buf)["z"]
-    z[np.array(ASSE_PIEGA) >= 40, :] *= 1.2
-    calib.scrivi_tabella(S, per["DEMO_SOGLIA_SLIP_L2"], mod, z)
-    calib.scrivi_tabella(S, per["DEMO_PROFILO_POST"], mod, [raggio_reale(np.array(ASSE_PROF, float), R0_POST, RC_POST)])
-    calib.correggi_checksum(S, mod)
-    with open(os.path.join(cartella, "demo_modificato.bin"), "wb") as fh:
-        fh.write(mod)
-    S["file"]["sha256_originale"] = calib.sha256(bytes(buf))
+    with open(os.path.join(cartella, "demo_SLICK.bin"), "wb") as fh:
+        fh.write(buf_s)
+    S["varianti"][0]["sha256"] = calib.sha256(bytes(buf))
+    S["varianti"][0]["file"] = "demo_NOSLICK.bin"
+    S["varianti"][1]["sha256"] = calib.sha256(bytes(buf_s))
+    S["varianti"][1]["file"] = "demo_SLICK.bin"
     for nome, ogg in (("struttura_demo.json", S), ("modello_demo.json", MODELLO_DEMO), ("profilo_demo.json", PROFILO_DEMO)):
         with open(os.path.join(cartella, nome), "w", encoding="utf-8") as fh:
             json.dump(ogg, fh, ensure_ascii=False, indent=1)

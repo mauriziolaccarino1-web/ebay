@@ -100,7 +100,7 @@
   const vista = {
     disegna() {
       radice.innerHTML = "";
-      const r = S.ris.mod || S.ris.orig;
+      const r = DV.risVista();
       if (!S.sess || !S.modello) { radice.append(el("div", { class: "pannello" }, el("p", { class: "nota" }, "Carica una sessione e il modello."))); return; }
       const G = costruisciGrafo(S.modello);
       this.G = G;
@@ -144,7 +144,7 @@
       }
       this.dettaglio = el("div", { class: "pannello" });
       this.sequenza = el("div", { class: "pannello scorre", style: { maxHeight: "48vh" } });
-      radice.append(el("div", { class: "nota", style: { marginBottom: "8px" } },
+      radice.append(el("div", { class: "strumenti" }, DV.selettoreVista(() => this.cursore())), el("div", { class: "nota", style: { marginBottom: "8px" } },
         "Ogni riquadro è un passo della catena con il suo valore all'istante del cursore. Clic su un riquadro: evidenzia tutto ciò che lo alimenta (traccia a monte fino al segnale CAN). Doppio clic su una tabella: la apre nella scheda Mappe. In rosso ciò che è attivo."),
         el("div", { class: "flusso-wrap" }, el("div", { class: "flusso-svg" }, svg), el("div", { class: "righe" }, this.dettaglio, this.sequenza)));
       this.evidenzia();
@@ -163,7 +163,7 @@
     },
     cursore() {
       if (!this.G) return;
-      const r = S.ris.mod || S.ris.orig;
+      const r = DV.risVista();
       const i = S.i;
       const stati = new Map();
       for (const [id, x] of this.elNodi) {

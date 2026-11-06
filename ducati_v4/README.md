@@ -10,6 +10,8 @@ Strumenti per:
 | verificare che la moto usi il protocollo della Streetfighter V4S | `dvtool can verifica` + scheda *Protocollo CAN* |
 | vedere quale ramo dei controlli lavora, dove è il punto attuale, quanto manca a ogni soglia (4 criteri) | visualizzatore, schede *Criteri e rami* e *Flusso dati* |
 | tracciare tutta la sequenza dei dati (CAN → ingressi → blocchi → criteri → rami → logica → uscita) | scheda *Flusso dati* |
+| ripercorrere il giro vedendo, come in INCA, le lookup table lette dal programma con le celle su cui sta la moto e il ramo attivo | scheda *Tabelle dal vivo* |
+| scegliere la mappa di riferimento (NOSLICK, SLICK, …) e confrontarla con un'altra | selettori **A** / **B** in alto, `dvtool progetto --cal` |
 | vedere e modificare tabelle e curve, capire quale si sta usando e dove | scheda *Mappe* + `dvtool calib` |
 | vedere il profilo pneumatico, com'è e come lo si sta modificando | scheda *Profilo pneumatico* |
 
@@ -26,9 +28,10 @@ py -m pip install numpy
 py -m dvtool demo --apri          (Linux: python3 -m dvtool demo --apri)
 ```
 
-Crea in `esempi/demo/` una pista, un log CAN, una centralina e un modello **inventati** (protocollo DEMO, non
-Ducati) e apre il visualizzatore su `http://127.0.0.1:8765`. Serve a vedere come funziona tutto prima di avere i
-file veri.
+Crea in `esempi/demo/` una pista, un log CAN, un modello e due mappe della centralina **inventati** (protocollo
+DEMO, non Ducati): `NOSLICK`, montata nel registrato, e `SLICK`, più libera, con i profili pneumatico in altri
+indirizzi. Poi apre il visualizzatore su `http://127.0.0.1:8765`. Serve a vedere come funziona tutto prima di avere
+i file veri.
 
 ## 2. Dal PC di casa al PC di lavoro
 
@@ -110,8 +113,11 @@ py -m dvtool can inventario privato\acquisizioni\cattura_XXXX.log
 py -m dvtool can verifica   privato\acquisizioni\cattura_XXXX.log --dbc privato\can\SFV4_bus_practical.dbc --profilo esempi\profilo_ducati_v4.json --out verifica.md
 py -m dvtool giri           privato\acquisizioni\cattura_XXXX.log --profilo esempi\profilo_ducati_v4.json --pista vallelunga
 py -m dvtool sessione       privato\acquisizioni\cattura_XXXX.log --profilo esempi\profilo_ducati_v4.json ^
-                            --modello privato\modello.json --struttura privato\struttura.json --bin privato\calibrazioni\originale.bin ^
-                            --out privato\progetto\sessione_1.json.gz
+                            --modello privato\modello.json --struttura privato\struttura.json ^
+                            --bin NOSLICK=privato\calibrazioni\noslick.bin --out privato\sessione_1.json.gz
+py -m dvtool progetto       --cartella privato\progetto --struttura privato\struttura.json --modello privato\modello.json ^
+                            --cal NOSLICK=privato\calibrazioni\noslick.bin --cal SLICK=privato\calibrazioni\slick.bin ^
+                            --sessione privato\sessione_1.json.gz --riferimento NOSLICK --confronto SLICK
 visualizza.bat privato\progetto
 ```
 
@@ -134,12 +140,27 @@ istante noto di passaggio, per esempio dal video). Dalla stessa firma si ricostr
 `py -m dvtool visualizza <cartella>` serve la cartella (con `progetto.json`) solo su 127.0.0.1. In alternativa
 puoi aprire `viewer/index.html` direttamente e trascinare i file: sessione `.json.gz`, struttura, modello e `.bin`.
 La linea del tempo in basso, le frecce (Maiusc = 1 s) e la barra spaziatrice muovono il cursore, che è comune a
-tutte le schede. In alto scegli il giro e i parametri del modello (per esempio il livello).
+tutte le schede. In alto scegli il giro, i parametri del modello (per esempio il livello) e le due mappe:
+
+- **A = riferimento**, per esempio la NOSLICK montata in moto;
+- **B = confronto**, per esempio la SLICK. Le modifiche si fanno su una copia di lavoro di B; il file B su disco non cambia.
+
+Ogni mappa caricata è riconosciuta dalla sua impronta sha256 (o dal nome) fra le `varianti` della struttura. La
+catena viene ricalcolata con A e con B sulla stessa acquisizione; nella linea del tempo gli interventi di A sono in
+rosso e quelli di B in arancio. In *Criteri e rami* la **concordanza** con il canale CAN della centralina dice quale
+delle due era davvero montata (demo: NOSLICK 95%, SLICK 36%).
 
 - **Acquisizione**: canali nel tempo (stessa unità = stesso grafico), pista ricostruita con il punto attuale, interventi evidenziati.
 - **Criteri e rami**: per ognuno dei criteri valore, soglia, misuratore con isteresi e distanza dalla soglia (in unità e in % della soglia). Mostra i rami con i termini veri/falsi, cosa manca perché un ramo lavori, la logica e l'uscita. Confronta la previsione con ciò che la centralina ha fatto davvero (canale CAN osservato). Grafici della distanza normalizzata e statistiche per giro, originale → modificata.
+- **Tabelle dal vivo** (stile INCA): una finestra per ogni lookup table letta dal programma dei controlli, con i parametri attuali (per esempio la soglia del livello 2). Mentre ripercorri il giro (▶, frecce, trascinando la linea del tempo) mostra:
+  - le 4 celle che la centralina sta interpolando, colorate in proporzione al peso;
+  - i valori d'asse evidenziati e il mirino sul punto esatto;
+  - la scia degli ultimi secondi e il valore in uscita;
+  - l'avviso «saturato» quando l'ingresso esce dall'asse.
+
+  Le finestre del ramo che sta lavorando sono bordate di rosso, quelle dei rami fermi si attenuano. Si può chiedere di vedere solo le tabelle del ramo attivo. A sinistra ci sono lo stato di logica, rami e criteri (quanto manca alla soglia) e la finestra *Misure* con tutte le grandezze della catena. Lo sfondo delle celle può essere il valore, *dove lavora nel giro* oppure la differenza B − A. Calcolo con A o con B a scelta.
 - **Flusso dati**: il grafo di tutta la catena con il valore di ogni passo al cursore. Un clic su un nodo traccia a monte fino al segnale CAN, con la sequenza dei passi in ordine di calcolo. Un doppio clic su una tabella la apre.
-- **Mappe**: elenco con le tabelle *in uso* con i parametri attuali. Viste valori, differenza modificata − originale, *dove lavora* (percentuale di tempo per cella nel giro scelto) e superficie 3D. Il punto di lavoro al cursore ha una scia di 3 s. Puoi modificare (imposta, somma, %, interpola, liscia, riporta all'originale, annulla, punti trascinabili sulle curve) e i criteri si ricalcolano subito sulla stessa acquisizione. Esporti il `.bin` con il checksum corretto oppure una patch `.json`.
+- **Mappe**: elenco con le tabelle *in uso* con i parametri attuali, *≠ A* e *✎ modificata*. Viste valori, differenza B − A, *dove lavora* (percentuale di tempo per cella nel giro scelto) e superficie 3D. Il punto di lavoro al cursore ha una scia di 3 s. Puoi modificare (imposta, somma, %, interpola, liscia, riporta all'originale, annulla, punti trascinabili sulle curve) e i criteri si ricalcolano subito sulla stessa acquisizione. Esporti il `.bin` con il checksum corretto oppure una patch `.json`.
 - **Profilo pneumatico**: raggio di rotolamento in funzione della piega (originale/modificato), sezione della gomma ricostruita dal profilo con il punto di contatto alla piega del cursore, correzione della velocità ruota, effetto della modifica sullo slittamento calcolato e generatore toroidale. C'è anche la **verifica sul registrato**: in rilascio lo slittamento corretto dovrebbe stare a zero a ogni piega. Se cresce con la piega, il profilo in tabella non è quello della gomma montata.
 - **Giri**: tempi, distacchi, sovrapposizione per distanza e distacco lungo il giro.
 - **Protocollo CAN**: esito, origine di ogni canale, integrità contatore/CRC, messaggi attesi, ID sconosciuti, controlli fisici.
@@ -148,14 +169,15 @@ tutte le schede. In alto scegli il giro e i parametri del modello (per esempio i
 
 Gli strumenti non contengono la decodifica della centralina: la leggono da due file JSON in `privato/`.
 
-- `esempi/struttura_da_compilare.json` → `privato/struttura.json`: per ogni tabella indirizzo, tipo di dato, endianità, scala, dimensioni e assi; poi le regole di checksum e quali tabelle sono profili pneumatico.
+- `esempi/struttura_da_compilare.json` → `privato/struttura.json`: per ogni tabella indirizzo, tipo di dato, endianità, scala, dimensioni e assi; poi le regole di checksum e quali tabelle sono profili pneumatico. In `varianti` vanno le mappe (NOSLICK, SLICK) con lo sha256 del file. Se in una mappa una tabella sta altrove, l'indirizzo si scrive per variante: `"indirizzo": {"NOSLICK": "0x…", "SLICK": "0x…"}`. I comandi `calib` riconoscono la variante dall'impronta del file oppure con `--variante`.
 - `esempi/modello_da_compilare.json` → `privato/modello.json`: la catena a blocchi (filtri, lookup, espressioni), i 4 criteri (valore, confronto, soglia, isteresi), i rami, la logica e i canali CAN da confrontare.
 
 Gli indirizzi nei modelli sono segnaposto. I file vanno compilati sul PC di casa con il materiale della
 decodifica. Controlli dopo la compilazione:
 
 ```
-py -m dvtool calib elenco   --struttura privato\struttura.json --bin privato\calibrazioni\originale.bin
+py -m dvtool calib elenco   --struttura privato\struttura.json --bin privato\calibrazioni\noslick.bin
+py -m dvtool calib confronta --struttura privato\struttura.json --bin noslick.bin --altro slick.bin   (tabelle diverse fra le due mappe)
 py -m dvtool calib checksum --struttura privato\struttura.json --bin privato\calibrazioni\originale.bin   (sull'originale deve dare OK)
 py -m dvtool calib cerca-checksum --struttura privato\struttura.json --bin originale.bin --da 0x... --a 0x...   (se la regola non è nota)
 ```
@@ -174,9 +196,9 @@ L'esempio completo e funzionante di entrambi i formati è in `esempi/demo/` dopo
 ## 7. Prove automatiche
 
 ```
-python -m unittest discover -s tests      (13 prove: DBC Intel/Motorola, frame reali SFV4 e CRC-8, formati log,
-                                          giri senza GPS, checksum, patch, modello, demo fine-a-fine,
-                                          parità del motore JavaScript con quello Python via node)
+python -m unittest discover -s tests      (14 prove: DBC Intel/Motorola, frame reali SFV4 e CRC-8, formati log,
+                                          giri senza GPS, checksum, patch, varianti NOSLICK/SLICK, modello,
+                                          demo fine-a-fine, parità del motore JavaScript con quello Python via node)
 ```
 
 ## Struttura

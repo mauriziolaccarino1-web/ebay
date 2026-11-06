@@ -83,8 +83,26 @@ class ProvaGiri(unittest.TestCase):
 
 class ProvaCalibrazione(unittest.TestCase):
     def setUp(self):
-        self.S = synth.struttura_demo()
+        self.S = calib.risolvi(synth.struttura_demo(), "NOSLICK")
         self.buf = synth.bin_demo(self.S)
+
+    def test_varianti(self):
+        S = synth.struttura_demo()
+        with self.assertRaises(KeyError):
+            calib.risolvi(S)  # i profili hanno indirizzi per variante
+        Sn, Ss = calib.risolvi(S, "NOSLICK"), calib.risolvi(S, "SLICK")
+        bn, bs = synth.bin_demo(Sn, "NOSLICK"), synth.bin_demo(Ss, "SLICK")
+        S["varianti"][0]["sha256"] = calib.sha256(bytes(bn))
+        S["varianti"][1]["sha256"] = calib.sha256(bytes(bs))
+        self.assertEqual(calib.trova_variante(S, bs), "SLICK")
+        tp = next(t for t in Ss["tabelle"] if t["id"] == "DEMO_PROFILO_POST")
+        self.assertNotEqual(tp["indirizzo"], next(t for t in Sn["tabelle"] if t["id"] == "DEMO_PROFILO_POST")["indirizzo"])
+        # stessa tabella letta al suo indirizzo: profilo slick con corona più ampia (raggio minore a 60 gradi)
+        rn = calib.leggi_tabella(Sn, next(t for t in Sn["tabelle"] if t["id"] == "DEMO_PROFILO_POST"), bn)["z"][0]
+        rs = calib.leggi_tabella(Ss, tp, bs)["z"][0]
+        self.assertAlmostEqual(rn[0], rs[0], places=1)
+        self.assertLess(rs[-1], rn[-1])
+        self.assertTrue(all(r["ok"] for r in calib.verifica_checksum(Ss, bytes(bs))))
 
     def test_checksum_originale_ok(self):
         self.assertTrue(all(r["ok"] for r in calib.verifica_checksum(self.S, bytes(self.buf))))
@@ -136,9 +154,10 @@ class ProvaFineAFine(unittest.TestCase):
             synth.genera(cart)
             prof = leggi_json((os.path.join(cart, "profilo_demo.json")))
             M = leggi_json((os.path.join(cart, "modello_demo.json")))
-            S = leggi_json((os.path.join(cart, "struttura_demo.json")))
-            with open(os.path.join(cart, "demo_originale.bin"), "rb") as f:
+            with open(os.path.join(cart, "demo_NOSLICK.bin"), "rb") as f:
                 buf = f.read()
+            S0 = leggi_json((os.path.join(cart, "struttura_demo.json")))
+            S = calib.risolvi(S0, calib.trova_variante(S0, buf))
             s = sessione.crea(os.path.join(cart, "demo_log.candump"), prof, cart, M, S, buf)
             sessione.salva(s, os.path.join(cart, "sessione_demo.json.gz"))
             self.assertGreater(s["modello"]["osservati"][0]["concordanza"], 0.9)

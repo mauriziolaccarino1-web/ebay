@@ -57,6 +57,7 @@ h3 { font-size: 15px; } h4 { font-size: 13px; color: var(--testo-2); }
 
 .barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 16px; background: var(--superficie); border-bottom: 1px solid var(--bordo); }
 .titolo { font-weight: 650; margin-right: auto; }
+#stato-cal { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .bottone, select, input[type=number], input[type=text] {
   font: inherit; color: var(--testo); background: var(--superficie); border: 1px solid var(--bordo);
   border-radius: 6px; padding: 4px 10px; min-height: 30px;
@@ -182,3 +183,29 @@ canvas.tela { display: block; width: 100%; background: var(--superficie); border
 .tooltip { position: fixed; z-index: 60; pointer-events: none; background: var(--superficie); border: 1px solid var(--bordo); border-radius: 6px; padding: 6px 8px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.15); font-variant-numeric: tabular-nums; }
 .nota { font-size: 12.5px; color: var(--testo-2); }
 .avvertenza { border-left: 4px solid var(--attenzione); background: var(--superficie); padding: 8px 12px; border-radius: 6px; margin: 8px 0; }
+
+/* tabelle dal vivo (stile INCA) */
+.inca-wrap { display: grid; grid-template-columns: minmax(260px, 320px) 1fr; gap: 12px; align-items: start; }
+.inca-lato { position: sticky; top: 0; }
+@media (max-width: 1000px) { .inca-wrap { grid-template-columns: 1fr; } .inca-lato { position: static; } }
+.inca-griglia { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 10px; align-items: start; }
+.finestra { background: var(--superficie); border: 1px solid var(--bordo); border-radius: 8px; padding: 8px; overflow: hidden; border-top: 3px solid var(--asse); transition: opacity .15s; }
+.finestra.attiva { border-color: var(--critico); border-top-color: var(--critico); box-shadow: 0 0 0 1px var(--critico); }
+.finestra.spenta { opacity: .45; }
+.finestra .testa { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
+.finestra .uscita-val { margin-left: auto; font-weight: 650; font-variant-numeric: tabular-nums; }
+.finestra .badge.acceso { background: var(--attivo-banda); border-color: var(--critico); color: var(--testo); }
+.inca-assi { font-variant-numeric: tabular-nums; min-height: 1.4em; }
+.inca-tab { position: relative; overflow-x: auto; margin-top: 4px; }
+table.inca { border-collapse: separate; border-spacing: 1px; font-size: 11px; font-variant-numeric: tabular-nums; }
+table.inca td, table.inca th { padding: 1px 4px; min-width: 34px; height: 19px; text-align: right; border-radius: 2px; }
+table.inca th { background: var(--superficie-2); color: var(--testo-2); font-weight: 600; }
+table.inca th.angolo { font-size: 10px; font-weight: 400; }
+table.inca th.asse.wp { background: var(--s2); color: #fff; }
+table.inca td { cursor: pointer; }
+table.inca td.diversa { box-shadow: inset 0 -2px 0 var(--s2); }
+table.inca td.scia { outline: 1px dashed var(--testo-2); outline-offset: -1px; }
+table.inca td.wp { outline: 2px solid var(--testo); outline-offset: -2px; box-shadow: inset 0 0 0 99px rgba(235, 104, 52, calc(var(--w, 0) * 0.75)); color: var(--testo); font-weight: 700; }
+.mirino { position: absolute; pointer-events: none; background: var(--testo); opacity: .55; }
+.mirino.v { width: 1px; }
+.mirino.h { height: 1px; }

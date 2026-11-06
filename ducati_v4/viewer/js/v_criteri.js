@@ -45,7 +45,7 @@
       }
       radice.append(el("div", { class: "nota", style: { marginBottom: "8px" } },
         `${S.modello.nome || "modello"} · parametri ${JSON.stringify(r.parametri || {})}` +
-        (S.ris.mod && S.ris.orig ? " · confronto tra calibrazione ORIGINALE e MODIFICATA sullo stesso giro registrato" : "")));
+        (DV.confrontoAttivo() ? ` · A = ${DV.nomeA()}, B = ${DV.nomeB()} ricalcolate sullo stesso giro registrato` : ` · calibrazione ${DV.nomeA()}`)));
       this.carte = el("div", { class: "carte" });
       this.rami = el("div", { class: "pannello" });
       radice.append(this.carte, el("div", { style: { height: "12px" } }), this.rami);
@@ -74,11 +74,11 @@
         const base = o || m;
         const serie = [{ nome: "valore", dati: base.valore, colore: DV.colSerie(k), unita: c.unita },
           { nome: "soglia", dati: base.soglia, colore: DV.colore("--testo-2"), tratteggio: [6, 4], unita: c.unita }];
-        if (o && m && diversi(o.valore, m.valore)) serie.push({ nome: "valore (modificata)", dati: m.valore, colore: DV.colSerie(k), tratteggio: [2, 3], unita: c.unita });
-        if (o && m && diversi(o.soglia, m.soglia)) serie.push({ nome: "soglia (modificata)", dati: m.soglia, colore: DV.colore("--s8"), tratteggio: [6, 4], unita: c.unita });
+        if (o && m && diversi(o.valore, m.valore)) serie.push({ nome: `valore (${DV.nomeB()})`, dati: m.valore, colore: DV.colSerie(k), tratteggio: [2, 3], unita: c.unita });
+        if (o && m && diversi(o.soglia, m.soglia)) serie.push({ nome: `soglia (${DV.nomeB()})`, dati: m.soglia, colore: DV.colore("--s8"), tratteggio: [6, 4], unita: c.unita });
         DV.grafico(box, { titolo: `${c.id} · ${c.nome} (${c.valore} ${c.confronto} ${c.soglia})`, unita: c.unita, altezza: 150, serie, bande: [{ dati: base.attivo }] });
       });
-      gr.append(el("div", { class: "nota" }, "Le bande rosse indicano quando il criterio è soddisfatto (calibrazione originale). Le linee tratteggiate sono la calibrazione modificata."));
+      gr.append(el("div", { class: "nota" }, `Le bande rosse indicano quando il criterio è soddisfatto con ${DV.nomeA()} (A). Le linee tratteggiate sono ${DV.nomeB()} (B).`));
       this.statistiche(radice);
       this.cursore();
     },
@@ -86,7 +86,7 @@
       if (!this.carte || !S.sess) return;
       const r = S.ris.orig || S.ris.mod;
       if (!r) return;
-      const rm = S.ris.mod && S.ris.orig ? S.ris.mod : null;
+      const rm = DV.confrontoAttivo() ? S.ris.mod : null;
       const i = S.i;
       this.carte.innerHTML = "";
       defCrit().forEach((c, k) => {
@@ -112,7 +112,7 @@
           el("div", { class: "valori" },
             el("span", {}, "valore"), el("span", {}, c.valore), el("span", {}, "soglia da"), el("span", {}, String(c.soglia)),
             c.isteresi ? el("span", {}, "isteresi") : null, c.isteresi ? el("span", {}, `${c.isteresi} ${c.unita}`) : null,
-            rm ? el("span", {}, "modificata") : null,
+            rm ? el("span", {}, DV.nomeB()) : null,
             rm ? el("span", {}, `${DV.fmt(rm.criteri[c.id].valore[i])} ${c.confronto} ${DV.fmt(rm.criteri[c.id].soglia[i])} → ${rm.criteri[c.id].attivo[i] > 0.5 ? "soddisfatto" : "no"}`) : null));
         this.carte.append(carta);
       });
@@ -144,15 +144,18 @@
       box.append(el("div", { class: "ramo" + (L ? " attivo" : "") }, el("b", {}, "Logica"), el("code", {}, S.modello.logica || ""),
         el("span", { class: "stato " + (L ? "si" : "no") }, el("span", { class: "pallino" }), L ? "intervento" : "nessun intervento"),
         usc ? el("span", { class: "manca" }, usc) : null,
-        rm ? el("span", { class: "manca" }, `· modificata: ${rm.logica[i] > 0.5 ? "intervento" : "nessun intervento"}`) : null));
+        rm ? el("span", { class: "manca" }, `· ${DV.nomeB()}: ${rm.logica[i] > 0.5 ? "intervento" : "nessun intervento"}`) : null));
       // osservato sul CAN
       for (const o of S.modello.osservati || []) {
         const c = DV.canale(o.id);
         if (!c) continue;
         const vo = c.dati[i] > (o.soglia ?? 0.5);
+        const ca = DV.concordanza(S.ris.orig, o), cb = DV.confrontoAttivo() ? DV.concordanza(S.ris.mod, o) : null;
         box.append(el("div", { class: "ramo" }, el("b", {}, `Centralina (CAN): ${o.id}`),
           el("span", { class: "stato " + (vo ? "si" : "no") }, el("span", { class: "pallino" }), vo ? "interviene" : "non interviene"),
-          el("span", { class: "manca" }, vo === L ? "il modello concorda" : "il modello NON concorda in questo istante")));
+          el("span", { class: "manca" }, vo === L ? "il modello concorda" : "il modello NON concorda in questo istante"),
+          ca !== null ? el("span", { class: "manca", title: "quota di campioni in cui modello e centralina sono d'accordo, sull'intervento (interventi in comune / tutti gli interventi): dice quale calibrazione era montata" },
+            `· concordanza nella sessione: ${DV.nomeA()} ${(ca * 100).toFixed(0)}%` + (cb !== null ? ` · ${DV.nomeB()} ${(cb * 100).toFixed(0)}%` : "")) : null));
       }
       this.rami.append(box);
     },
@@ -160,7 +163,7 @@
       const crit = defCrit();
       const giri = DV.giri();
       if (!giri.length) return;
-      const ro = S.ris.orig, rm = S.ris.mod && S.ris.orig ? S.ris.mod : null;
+      const ro = S.ris.orig, rm = DV.confrontoAttivo() ? S.ris.mod : null;
       const stat = (r, a, b) => {
         const scale = crit.map((c) => scala(c, r));
         let ni = 0, ti = 0, prima = false;
@@ -193,7 +196,7 @@
       const tab = el("table", { class: "dati" }, el("thead", {}, testa), el("tbody", {}, righe));
       tab.addEventListener("click", (e) => { const tr = e.target.closest("tr[data-i]"); if (tr) DV.vaiA(+tr.dataset.i); });
       dove.append(el("div", { class: "pannello", style: { marginTop: "12px" } }, el("h3", {}, "Per giro"),
-        el("div", { class: "nota" }, "Interventi = quante volte la logica si accende; % = tempo con il criterio soddisfatto; min = distanza minima dalla soglia in frazione della soglia (negativa = superata)." + (rm ? " Formato: originale → modificata." : "")),
+        el("div", { class: "nota" }, "Interventi = quante volte la logica si accende; % = tempo con il criterio soddisfatto; min = distanza minima dalla soglia in frazione della soglia (negativa = superata)." + (rm ? ` Formato: ${DV.nomeA()} → ${DV.nomeB()}.` : "")),
         el("div", { class: "scorre" }, tab)));
     },
   };
