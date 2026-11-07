@@ -420,6 +420,43 @@ class ProvaRegistratore(unittest.TestCase):
         self.assertEqual(R.riga(fr(0x40000000 | 0x123, []), 2.0, "can1")[0], "(2.000000) can1 123#R\n")
 
 
+class ProvaLetturaERegistratore(unittest.TestCase):
+    def test_ultima_riga_troncata(self):
+        log = canlog.leggi_testo(["(1.000000) can1 018#0011223344556677", "(1.001000) can1 018#00112"])
+        self.assertEqual(len(log), 1)
+        self.assertIn("1 righe illeggibili", log.note)
+
+    def test_frame_persi_contati_dal_primo(self):
+        # SO_RXQ_OVFL arriva solo dopo la prima perdita: le prime perdite vanno contate
+        import socket
+        import struct
+        from dvtool import registratore_can as R
+
+        class Finto:
+            def __init__(self, con_contatore=True):
+                self.n, self.con = 0, con_contatore
+
+            def settimeout(self, t):
+                pass
+
+            def recvmsg(self, a, b):
+                self.n += 1
+                if self.n > 400:
+                    raise socket.timeout()
+                anc = [(socket.SOL_SOCKET, R.SO_RXQ_OVFL, struct.pack("I", 3))] if self.con and self.n > 200 else []
+                return struct.pack("=IB3x8s", 0x018, 8, bytes(8)), anc, 0, None
+
+        d = tempfile.mkdtemp()
+        try:
+            r = R.registra(Finto(), "can1", d, {"conta_persi": True}, durata=0.6)
+            self.assertEqual(r["frame"], 400)
+            self.assertEqual(r["persi_socket"], 3)
+            r = R.registra(Finto(False), "can1", d, {"conta_persi": False}, durata=0.6)   # opzione non disponibile
+            self.assertIsNone(r["persi_socket"])
+        finally:
+            shutil.rmtree(d)
+
+
 class ProvaFineAFine(unittest.TestCase):
     def test_demo_sessione_e_js(self):
         cart = tempfile.mkdtemp()
@@ -433,7 +470,13 @@ class ProvaFineAFine(unittest.TestCase):
             S = calib.risolvi(S0, calib.trova_variante(S0, buf))
             with open(os.path.join(cart, "marcatori.txt"), "w") as f:
                 f.write("1762430460.5 TC cambiato da 2 a 3\n1000.0 fuori dalla cattura\n")
+            # canali calcolati come tc_eff/aw_eff/scs_eff del profilo V4 R: prima davano KeyError 'segnale'
+            prof["canali"]["tc_eff"] = {"espressione": "where(tc_attivo > 0.5, 0, round(tc_livello))", "nome": "TC effettivo"}
+            prof["canali"]["rotto"] = {"espressione": "canale_che_non_esiste + 1"}
             s = sessione.crea(os.path.join(cart, "demo_log.candump"), prof, cart, M, S, buf)
+            ids = [c["id"] for c in s["canali"]]
+            self.assertIn("tc_eff", ids)
+            self.assertNotIn("rotto", ids)
             self.assertEqual([m["testo"] for m in s["meta"]["marcatori"]], ["TC cambiato da 2 a 3"])
             os.remove(os.path.join(cart, "marcatori.txt"))
             sessione.salva(s, os.path.join(cart, "sessione_demo.json.gz"))

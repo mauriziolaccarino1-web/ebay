@@ -60,10 +60,14 @@ def _spec(c):
 
 
 def canali_logici(profilo: dict, ricamp: dict) -> dict:
+    """Canali logici del profilo: quelli con «segnale» dal DBC, poi quelli con «espressione» calcolati dagli altri
+    (es. tc_eff = where(dtc_off > 0.5, 0, round(dtc_livello))). I canali con sola espressione non hanno «segnale»."""
     out = {}
     for nome, c in profilo.get("canali", {}).items():
         c = _spec(c)
-        sig = c["segnale"]
+        sig = c.get("segnale")
+        if not sig:
+            continue
         trovato = ricamp.get(sig)
         if trovato is None:
             for k, v in ricamp.items():
@@ -172,7 +176,7 @@ def crea(percorso_log: str, profilo: dict, cartella_profilo: str = ".", modello_
         c = _spec(profilo["canali"][nome])
         canali.append({"id": nome, "nome": c.get("nome", nome), "unita": c.get("unita", ""), "gruppo": "principali",
                        "b64": b64(v)})
-    mappati = {_spec(c)["segnale"] for c in profilo.get("canali", {}).values()}
+    mappati = {_spec(c).get("segnale") for c in profilo.get("canali", {}).values()} - {None}
     extra = profilo.get("extra", "*" if len(ric) <= 60 else [])
     for chiave, v in ric.items():
         if chiave in mappati or chiave.split(".", 1)[1] in mappati:

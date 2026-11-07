@@ -90,36 +90,48 @@ def leggi_testo(righe, origine="testo") -> Log:
     tt, ii, ll, dd = [], [], [], []
     et, ed = [], []
     t_finto = 0.0
+    scartate = 0
     for r in righe:
-        m = _RE_L.match(r)
-        if m:
-            payload = bytes.fromhex(m.group(5)) if m.group(5) else b""
-            if len(m.group(3)) == 8 and int(m.group(3), 16) & 0x20000000:
-                # frame di errore (candump -L "...#FFFFFFFF"): non è un messaggio della moto
-                et.append(float(m.group(1))); ed.append(payload)
-                continue
-            tt.append(float(m.group(1))); ii.append(int(m.group(3), 16) & 0x1FFFFFFF)
-            ll.append(len(payload)); dd.append(payload)
-            continue
-        m = _RE_TA.match(r)
-        if m:
-            payload = bytes.fromhex(m.group(5).replace(" ", ""))
-            tt.append(float(m.group(1))); ii.append(int(m.group(3), 16)); ll.append(int(m.group(4))); dd.append(payload)
-            continue
-        m = _RE_ASC.match(r)
-        if m:
-            payload = bytes.fromhex(m.group(6).replace(" ", ""))
-            tt.append(float(m.group(1))); ii.append(int(m.group(3), 16)); ll.append(int(m.group(5))); dd.append(payload)
-            continue
-        m = _RE_PLAIN.match(r)
-        if m:
-            payload = bytes.fromhex(m.group(4).replace(" ", ""))
-            t_finto += 0.001
-            tt.append(t_finto); ii.append(int(m.group(2), 16)); ll.append(int(m.group(3))); dd.append(payload)
+        try:
+            t_finto = _riga_testo(r, tt, ii, ll, dd, et, ed, t_finto)
+        except ValueError:   # riga troncata (es. l'ultima, se la cattura è stata copiata mentre registrava)
+            scartate += 1
     nota = "senza tempi: passo fittizio 1 ms" if t_finto else ""
+    if scartate:
+        nota = (nota + "; " if nota else "") + f"{scartate} righe illeggibili scartate (es. ultima riga troncata)"
     log = _da_liste(tt, ii, ll, dd, origine, nota)
     log.errori = _errori(et, ed)
     return log
+
+
+def _riga_testo(r, tt, ii, ll, dd, et, ed, t_finto):
+    """Interpreta una riga di testo (candump -L, candump -ta, ASC, candump semplice); ValueError se è rovinata."""
+    m = _RE_L.match(r)
+    if m:
+        payload = bytes.fromhex(m.group(5)) if m.group(5) else b""
+        if len(m.group(3)) == 8 and int(m.group(3), 16) & 0x20000000:
+            # frame di errore (candump -L "...#FFFFFFFF"): non è un messaggio della moto
+            et.append(float(m.group(1))); ed.append(payload)
+            return t_finto
+        tt.append(float(m.group(1))); ii.append(int(m.group(3), 16) & 0x1FFFFFFF)
+        ll.append(len(payload)); dd.append(payload)
+        return t_finto
+    m = _RE_TA.match(r)
+    if m:
+        payload = bytes.fromhex(m.group(5).replace(" ", ""))
+        tt.append(float(m.group(1))); ii.append(int(m.group(3), 16)); ll.append(int(m.group(4))); dd.append(payload)
+        return t_finto
+    m = _RE_ASC.match(r)
+    if m:
+        payload = bytes.fromhex(m.group(6).replace(" ", ""))
+        tt.append(float(m.group(1))); ii.append(int(m.group(3), 16)); ll.append(int(m.group(5))); dd.append(payload)
+        return t_finto
+    m = _RE_PLAIN.match(r)
+    if m:
+        payload = bytes.fromhex(m.group(4).replace(" ", ""))
+        t_finto += 0.001
+        tt.append(t_finto); ii.append(int(m.group(2), 16)); ll.append(int(m.group(3))); dd.append(payload)
+    return t_finto
 
 
 def _errori(et, ed):

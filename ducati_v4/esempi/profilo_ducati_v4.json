@@ -140,7 +140,7 @@
    "segnale": "IMU_174.Roll_Rate",
    "unita": "deg/s",
    "nome": "velocità di rollio",
-   "verificato": "no"
+   "verificato": "no: 0x174 non c'è sulla Panigale (cattura del 7/11), il canale resta vuoto"
   },
   "odometro": {
    "segnale": "RX_DashOdo_620.Odometer",
@@ -189,5 +189,6 @@
  },
  "scatola": "r9",
  "_livelli": "Livelli selezionabili sulla V4 R: potenza (Power Mode, 0x080), TC = DTC, SCS = DSC, AW = DWC (0x018, anche dal cruscotto 0x020 come livello-1), freno motore = EBC (0x190). I canali *_eff valgono 0 quando il controllo è spento. Scale e valori da verificare al primo turno: DTC_Lv viene dalle formule AiM (0.5 per bit, +1).",
+ "_protocollo_panigale": "Cattura del 7/11 (V4 R, motore acceso): stesso formato e CRC della SFV4, ma mancano 0x174, 0x178, 0x17C e 0x330 (IMU a 100 Hz) più 6 ID minori, e ci sono 0x084, 0x086, 0x088, 0x184, 0x1AE, 0x328, 0x624. La piega su 0x188 c'è. In movimento da confermare.",
  "_sentinelle": "All'accensione arrivano valori sentinella (prova SFV4 31/10): 0xFF su gas e temperature, 0xFFF su farfalle e coppie, raw 0 = piega -409.6, marcia 7, livelli 0xF (8.5). I campi min/max li scartano (NaN): i livelli prendono il valore precedente."
 }

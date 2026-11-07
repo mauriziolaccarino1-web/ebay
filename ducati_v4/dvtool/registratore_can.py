@@ -137,7 +137,8 @@ def registra(s, bus, cartella, opz=None, max_mb=200.0, durata=None, fermo=None, 
     filo.start()
     print(f"registro {bus} in {nome}", flush=True)
     n = n_err = n_ovf = 0
-    persi0 = persi = None
+    # SO_RXQ_OVFL: il kernel aggiunge il contatore solo dopo la PRIMA perdita, e conta da 0 dall'apertura del socket
+    persi = 0 if opz.get("conta_persi") else None
     inizio = time.monotonic()
     cpu0, mono0, n0 = time.process_time(), inizio, 0
     ultimo_flush = inizio
@@ -159,7 +160,6 @@ def registra(s, bus, cartella, opz=None, max_mb=200.0, durata=None, fermo=None, 
         if dati:
             t, p = ancillari(anc)
             if p is not None:
-                persi0 = p if persi0 is None else persi0
                 persi = p
             if t is None:
                 t = time.time()
@@ -183,7 +183,7 @@ def registra(s, bus, cartella, opz=None, max_mb=200.0, durata=None, fermo=None, 
             cpu = time.process_time()
             _scrivi_stato(cartella, {"t": time.time(), "file": os.path.basename(nome), "frame": n,
                                      "frame_al_s": round((n - n0) / max(ora - mono0, 1e-6), 1),
-                                     "persi_socket": (persi - persi0) if persi is not None else None,
+                                     "persi_socket": persi,
                                      "frame_errore": n_err, "overflow": n_ovf,
                                      "cpu_pct": round(100 * (cpu - cpu0) / max(ora - mono0, 1e-6), 1)})
             cpu0, mono0, n0, ultimo_stato = cpu, ora, n, ora
@@ -196,7 +196,7 @@ def registra(s, bus, cartella, opz=None, max_mb=200.0, durata=None, fermo=None, 
     out.close()
     secondi = time.monotonic() - inizio
     r = {"frame": n, "secondi": round(secondi, 1), "frame_al_s": round(n / max(secondi, 1e-6), 1),
-         "persi_socket": (persi - persi0) if persi is not None else None, "frame_errore": n_err, "overflow": n_ovf,
+         "persi_socket": persi, "frame_errore": n_err, "overflow": n_ovf,
          "id": len(ids), "cpu_pct": round(100 * time.process_time() / max(secondi, 1e-6), 1),
          "tempo_kernel": opz.get("tempo_kernel"), "conta_persi": opz.get("conta_persi"),
          "buffer_byte": opz.get("buffer_byte"), "file": os.path.basename(nome)}
