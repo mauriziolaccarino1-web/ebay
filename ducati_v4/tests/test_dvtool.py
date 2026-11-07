@@ -318,6 +318,50 @@ class ProvaCronometroScatolaFinta(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.M, "home", "catture_ducati")))
         self.assertTrue(self.c.op_stato(sc)["presa_ok"])
 
+    def _scp_finto(self, corpo):
+        p = os.path.join(self.M, "bin", "scp")
+        with open(p, "w") as f:
+            f.write("#!/bin/bash\nsrc=\"${@: -2:1}\"; dst=\"${@: -1}\"; S=\"$SCATOLA/home/${src#*:}\"; N=\"$SCATOLA/stato/scp_n\"\n"
+                    "n=$(cat \"$N\" 2>/dev/null || echo 0); n=$((n+1)); echo $n > \"$N\"\n" + corpo)
+        os.chmod(p, 0o755)
+
+    def _cattura_sulla_scatola(self, testo):
+        d = os.path.join(self.M, "home", "catture_ducati")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "cattura_1.log"), "w") as f:
+            f.write(testo)
+
+    def test_scarico_interrotto_non_lascia_file_troncati(self):
+        sc = self._r9()
+        buono = "(1.0) can1 018#00\n" * 2000
+        self._cattura_sulla_scatola(buono)
+        # 1° tentativo: si interrompe a metà (wifi), 2°: completo
+        self._scp_finto('if [ $n -eq 1 ]; then head -c 5000 "$S" > "$dst"; exit 1; fi; cp "$S" "$dst"\n')
+        d = os.path.join(self.M, "scaricati")
+        r = self.c.op_scarica(sc, d)
+        self.assertTrue(r["ok"], r)
+        self.assertIn("tentativo 2", r["file"][0]["esito"])
+        self.assertEqual(leggi_testo(os.path.join(d, "cattura_1.log")), buono)
+        self.assertEqual([f for f in os.listdir(d) if f.endswith(".part")], [])
+        # la scatola ha un file più lungo ma il wifi cade sempre: la copia buona sul PC resta com'è
+        self._cattura_sulla_scatola(buono + "(2.0) can1 018#01\n")
+        self._scp_finto('head -c 100 "$S" > "$dst"; exit 1\n')
+        r = self.c.op_scarica(sc, d)
+        self.assertFalse(r["ok"])
+        self.assertEqual(leggi_testo(os.path.join(d, "cattura_1.log")), buono)
+        self.assertEqual([f for f in os.listdir(d) if f.endswith(".part")], [])
+
+    def test_scarico_durante_la_registrazione(self):
+        sc = self._r9()
+        self._cattura_sulla_scatola("(1.0) can1 018#00\n" * 100)
+        # il file cresce fra l'impronta e la copia: la copia è parziale, salvata a parte
+        self._scp_finto('cp "$S" "$dst"; echo "(9.0) can1 018#09" >> "$dst"\n')
+        os.makedirs(os.path.join(self.M, "pc"))
+        r = self.c._scarica_uno(sc, "cattura_1.log", "0" * 64, os.path.join(self.M, "pc", "cattura_1.log"), registrazione_attiva=True)
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["parziale"], "cattura_1_parziale.log")
+        self.assertEqual(os.listdir(os.path.join(self.M, "pc")), ["cattura_1_parziale.log"])
+
     def test_porte_scambiate_dopo_avvio(self):
         sc = self._r9()
         self._prese({"can0": "spi1.1", "can1": "spi1.2"})   # can1 è finito sul morsetto della lambda
@@ -342,6 +386,18 @@ class ProvaCronometroScatolaFinta(unittest.TestCase):
         self.assertEqual(set(int(x) for x in log.id), {0x18})          # l'overflow non diventa l'ID 0x004
         self.assertEqual(log.errori["overflow_rx"], log.errori["n"])
         self.assertGreater(log.errori["n"], 0)
+
+
+class ProvaSshUtf8(unittest.TestCase):
+    def test_script_e_risposte_in_utf8(self):
+        # su Windows text=True userebbe cp1252: «è» diventerebbe un byte che python3 sulla scatola rifiuta
+        from unittest import mock
+        from dvtool import cronometro as c
+        sc = c.Scatola(c.configurazione("/nessuno.json"), "r9")
+        with mock.patch.object(c.subprocess, "run") as run:
+            run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
+            c._ssh(sc, "true", ingresso="# è à")
+        self.assertEqual(run.call_args.kwargs.get("encoding"), "utf-8")
 
 
 class ProvaRegistratore(unittest.TestCase):

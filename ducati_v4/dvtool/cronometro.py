@@ -87,7 +87,7 @@ class Scatola:
         args += [self.dest, comando]
         if interattivo:
             return subprocess.run(args).returncode
-        r = subprocess.run(args, capture_output=True, text=True)
+        r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace")
         if controlla and r.returncode != 0:
             raise RuntimeError(f"ssh fallito ({r.returncode}): {r.stderr.strip()}")
         return r.stdout
@@ -95,14 +95,14 @@ class Scatola:
     def scp_da(self, remoto, locale):
         args = ["scp", "-o", "ConnectTimeout=8", "-o", f"HostKeyAlias={self.alias}", "-o", "BatchMode=yes",
                 f"{self.dest}:{remoto}", locale]
-        r = subprocess.run(args, capture_output=True, text=True)
+        r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace")
         if r.returncode != 0:
             raise RuntimeError(f"scp fallito: {r.stderr.strip()}")
 
     def scp_a(self, locale, remoto):
         args = ["scp", "-o", "ConnectTimeout=8", "-o", f"HostKeyAlias={self.alias}", "-o", "BatchMode=yes",
                 locale, f"{self.dest}:{remoto}"]
-        r = subprocess.run(args, capture_output=True, text=True)
+        r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace")
         if r.returncode != 0:
             raise RuntimeError(f"scp fallito: {r.stderr.strip()}")
 
@@ -178,7 +178,7 @@ def _ssh(sc: Scatola, comando, ingresso=None, timeout=60):
     args = ["ssh", "-o", "ConnectTimeout=8", "-o", "BatchMode=yes", "-o", f"HostKeyAlias={sc.alias}",
             "-o", "StrictHostKeyChecking=accept-new", sc.dest, comando]
     try:
-        r = subprocess.run(args, input=ingresso, capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run(args, input=ingresso, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
     except FileNotFoundError:
         return 255, "", "comando ssh non trovato: su Windows 10/11 attiva «Client OpenSSH» nelle funzionalità facoltative"
     except subprocess.TimeoutExpired:
@@ -395,15 +395,39 @@ def op_scarica(sc: Scatola, dest: str) -> dict:
         if os.path.exists(locale) and _sha_locale(locale) == h and nome != "marcatori.txt":
             esiti.append({"nome": nome, "esito": "già scaricato", "ok": True, "byte": os.path.getsize(locale)})
             continue
-        try:
-            sc.scp_da(f"{sc.cartella}/{nome}", locale)
-            ok = _sha_locale(locale) == h
-            esiti.append({"nome": nome, "ok": ok, "byte": os.path.getsize(locale),
-                          "esito": "scaricato e verificato" if ok else "impronta diversa (in registrazione? riprova dopo averla fermata)"})
-        except RuntimeError as e:
-            esiti.append({"nome": nome, "ok": False, "esito": str(e)})
+        esiti.append(_scarica_uno(sc, nome, h, locale, registrazione_attiva=bool(attivo.strip())))
     return {"ok": all(e["ok"] for e in esiti), "file": esiti, "dest": os.path.abspath(dest),
             "registrazione_attiva": bool(attivo.strip()), "nota": "sulla scatola non è stato cancellato nulla"}
+
+
+def _scarica_uno(sc: Scatola, nome: str, h: str, locale: str, registrazione_attiva: bool, tentativi: int = 3) -> dict:
+    """Scarica in <nome>.part e lo rinomina solo se l'impronta coincide: un trasferimento interrotto (wifi) non
+    lascia mai un file troncato al posto di una copia buona. Riprova da solo."""
+    parte = locale + ".part"
+    ultimo = ""
+    for i in range(tentativi):
+        try:
+            sc.scp_da(f"{sc.cartella}/{nome}", parte)
+        except RuntimeError as e:
+            ultimo = f"trasferimento interrotto ({e})"
+            continue
+        if _sha_locale(parte) == h:
+            os.replace(parte, locale)
+            return {"nome": nome, "ok": True, "byte": os.path.getsize(locale),
+                    "esito": "scaricato e verificato" + (f" (al tentativo {i + 1})" if i else "")}
+        ultimo = "impronta diversa"
+        if registrazione_attiva:
+            break   # il file cresce mentre lo copio: riprovare non serve
+    if os.path.exists(parte):
+        if registrazione_attiva and nome.endswith(".log") and ultimo == "impronta diversa":
+            parziale = locale[:-4] + "_parziale.log"
+            os.replace(parte, parziale)
+            return {"nome": nome, "ok": False, "byte": os.path.getsize(parziale), "parziale": os.path.basename(parziale),
+                    "esito": f"la registrazione sta ancora scrivendo questo file: copia parziale in {os.path.basename(parziale)}, "
+                             "utile per un'occhiata; per la copia verificata ferma la registrazione e riscarica"}
+        os.remove(parte)
+    return {"nome": nome, "ok": False, "esito": f"{ultimo or 'non scaricato'} dopo {tentativi} tentativi: riprova "
+                                                  "(la copia che avevi sul PC, se c'era, non è stata toccata)"}
 
 
 def op_ripristina(sc: Scatola, password: str = "") -> dict:
@@ -527,7 +551,7 @@ def autorizza(sc: Scatola, a):
     privata = a.file[:-4] if a.file.endswith(".pub") else None
     if privata and os.path.exists(privata):
         r = subprocess.run(["ssh", "-o", "ConnectTimeout=8", "-o", "BatchMode=yes", "-o", f"HostKeyAlias={sc.alias}",
-                            "-i", privata, "-o", "IdentitiesOnly=yes", sc.dest, "echo ok"], capture_output=True, text=True)
+                            "-i", privata, "-o", "IdentitiesOnly=yes", sc.dest, "echo ok"], capture_output=True, text=True, encoding="utf-8", errors="replace")
         if r.returncode == 0:
             print("Verificato: la nuova chiave entra da sola (come la usano la Guida e i comandi).")
         else:
