@@ -86,8 +86,10 @@ def controlli(imp=None) -> list:
     chiavi = [os.path.expanduser(f"~/.ssh/{n}.pub") for n in ("id_ed25519", "id_rsa", "id_ecdsa")]
     k = next((c for c in chiavi if os.path.exists(c)), None)
     voce("Chiave SSH di questo PC", k, k or "nessuna chiave",
-         "Crea la chiave: «ssh-keygen -t ed25519» (invio a tutte le domande). Poi dal PC di casa, che entra già nella scatola: "
-         "«dvtool.bat cronometro autorizza --file id_ed25519.pub». Sulla scatola si aggiunge solo una riga alle chiavi autorizzate.")
+         "Crea la chiave: «ssh-keygen -t ed25519» (invio a tutte le domande, passphrase vuota). Per autorizzarla serve per qualche "
+         "minuto una copia della chiave di casa (con AnyDesk), con la scatola collegata via USB: «dvtool.bat cronometro autorizza "
+         "--file %USERPROFILE%\\.ssh\\id_ed25519.pub --chiave %USERPROFILE%\\.ssh\\chiave_casa», poi cancella la copia. "
+         "Sulla scatola si aggiunge solo una riga alle chiavi autorizzate (README, «Chiave SSH»).")
     prof = _p(imp["profilo"])
     voce("Profilo della moto", os.path.exists(prof), os.path.relpath(prof, RADICE))
     if os.path.exists(prof):

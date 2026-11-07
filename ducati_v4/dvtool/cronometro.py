@@ -79,9 +79,11 @@ class Scatola:
     def dest(self):
         return f"{self.c['utente']}@{self.c['host']}"
 
-    def ssh(self, comando, interattivo=False, controlla=True):
+    def ssh(self, comando, interattivo=False, controlla=True, chiave=None):
         args = ["ssh", "-o", "ConnectTimeout=8", "-o", f"HostKeyAlias={self.alias}"]
-        args += ["-t"] if interattivo else ["-o", "BatchMode=yes"]
+        if chiave:   # solo questa chiave (es. la copia temporanea di quella di casa)
+            args += ["-i", chiave, "-o", "IdentitiesOnly=yes"]
+        args += ["-o", "StrictHostKeyChecking=accept-new"] if interattivo else ["-o", "BatchMode=yes"]
         args += [self.dest, comando]
         if interattivo:
             return subprocess.run(args).returncode
@@ -497,16 +499,39 @@ def scarica(sc: Scatola, a):
 
 
 def autorizza(sc: Scatola, a):
-    """Da eseguire dal PC che GIÀ entra nella scatola: aggiunge la chiave pubblica di un altro PC (es. lavoro)."""
+    """Aggiunge la chiave pubblica di questo PC (o di un altro) alle chiavi autorizzate della scatola.
+
+    Serve una chiave che la scatola accetta GIÀ: quella di casa. Dal PC di lavoro: --chiave <copia temporanea
+    della chiave privata di casa>, poi la copia va cancellata. Sulla scatola si aggiunge solo una riga."""
+    if not a.file:
+        raise SystemExit("serve --file <chiave PUBBLICA .pub da autorizzare>, es. %USERPROFILE%\\.ssh\\id_ed25519.pub")
     pub = open(a.file, "r", encoding="ascii").read().strip()
     if not pub.startswith(("ssh-ed25519 ", "ssh-rsa ", "ecdsa-")) or "PRIVATE" in pub:
         raise SystemExit("serve il file .pub (chiave PUBBLICA), non la chiave privata")
+    chiave = getattr(a, "chiave", None)
+    if chiave and not os.path.exists(chiave):
+        raise SystemExit(f"chiave per entrare non trovata: {chiave}")
     print(f"Aggiungo a ~/.ssh/authorized_keys di {sc.dest}:\n  {pub[:60]}...")
+    print(f"Entro con: {chiave or 'le chiavi predefinite di questo PC'}")
     if not _conferma("Procedo?", a):
         return
     q = shlex.quote(pub)
-    print(sc.ssh(f"mkdir -p ~/.ssh && chmod 700 ~/.ssh && (grep -qxF {q} ~/.ssh/authorized_keys 2>/dev/null || echo {q} >> ~/.ssh/authorized_keys) "
-                 f"&& chmod 600 ~/.ssh/authorized_keys && echo chiave presente"))
+    rc = sc.ssh(f"mkdir -p ~/.ssh && chmod 700 ~/.ssh && (grep -qxF {q} ~/.ssh/authorized_keys 2>/dev/null || echo {q} >> ~/.ssh/authorized_keys) "
+                f"&& chmod 600 ~/.ssh/authorized_keys && echo chiave presente", interattivo=True, chiave=chiave)
+    if rc != 0:
+        print(f"! non riuscito (ssh {rc}): la scatola accetta la chiave indicata con --chiave? è collegata?")
+        return
+    privata = a.file[:-4] if a.file.endswith(".pub") else None
+    if privata and os.path.exists(privata):
+        r = subprocess.run(["ssh", "-o", "ConnectTimeout=8", "-o", "BatchMode=yes", "-o", f"HostKeyAlias={sc.alias}",
+                            "-i", privata, "-o", "IdentitiesOnly=yes", sc.dest, "echo ok"], capture_output=True, text=True)
+        if r.returncode == 0:
+            print("Verificato: la nuova chiave entra da sola (come la usano la Guida e i comandi).")
+        else:
+            print("! la nuova chiave non entra ancora senza domande: se ha una passphrase la Guida non può usarla "
+                  "(ricreala premendo invio alla passphrase).", r.stderr.strip()[-200:])
+    if chiave:
+        print(f"Ora cancella la copia temporanea della chiave di casa: del \"{chiave}\"")
 
 
 def pacchetto(sc: Scatola, a):

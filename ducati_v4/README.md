@@ -78,14 +78,34 @@ py -m dvtool pacchetto apri ducati_v4_trasferimento.zip --in privato
 L'apertura verifica l'impronta di ogni file e non sovrascrive file diversi già presenti (`--sovrascrivi` per farlo).
 Il pacchetto funziona anche al contrario (lavoro → casa).
 
-**Chiave SSH per il cronometro dal PC di lavoro** (la scatola accetta solo chiavi):
+**Chiave SSH per il cronometro dal PC di lavoro.** La scatola accetta solo chiavi e oggi conosce solo quella del
+PC di casa, che però non la raggiunge: la scatola è con te. Si usa quindi per pochi minuti una copia della chiave
+di casa sul PC di lavoro, solo per autorizzare la chiave nuova.
 
-```
-lavoro:  ssh-keygen -t ed25519          -> porta a casa il file %USERPROFILE%\.ssh\id_ed25519.pub
-casa:    py -m dvtool cronometro autorizza --file id_ed25519.pub
-```
+1. **Casa:** trova la chiave con cui entri nella scatola. È in `%USERPROFILE%\.ssh\`: se c'è il file `config`,
+   la riga `IdentityFile` sotto l'`Host` della scatola (169.254.55.1, `r9-yccu` o l'indirizzo .206); altrimenti
+   è `id_ed25519` (o `id_rsa`), il file **senza** `.pub`.
+2. Copiala sul PC di lavoro con il trasferimento file di AnyDesk, in `%USERPROFILE%\.ssh\chiave_casa`.
+   Mai per email, chat o cartelle in cloud.
+3. **Lavoro:** `ssh-keygen -t ed25519`, con invio a tutte le domande. La passphrase va lasciata vuota, altrimenti
+   la Guida non può usare la chiave.
+4. **Lavoro, con la scatola accesa** e raggiungibile via USB o sullo stesso hotspot del telefono (va bene anche
+   montata sulla R9: non si tocca il CAN):
+   ```
+   dvtool.bat cronometro autorizza --scatola r9 --host <indirizzo> --file %USERPROFILE%\.ssh\id_ed25519.pub --chiave %USERPROFILE%\.ssh\chiave_casa
+   ```
+   - Se la chiave di casa ha una passphrase, te la chiede.
+   - Alla fine verifica che la chiave nuova entri da sola.
+   - Se ssh dice `UNPROTECTED PRIVATE KEY FILE`:
+     `icacls %USERPROFILE%\.ssh\chiave_casa /inheritance:r /grant:r "%USERNAME%":F`
+5. **Lavoro:** `del %USERPROFILE%\.ssh\chiave_casa`.
 
-Si sposta solo la chiave **pubblica**; la privata resta sul PC di lavoro.
+Sulla scatola si aggiunge solo una riga a `~/.ssh/authorized_keys`.
+
+**USB o wifi.** Via USB l'indirizzo della R9 è 169.254.55.1. Via wifi PC e scatola stanno sull'hotspot del
+telefono: l'ultimo numero è .206, il resto cambia ogni volta che riaccendi l'hotspot, e lo leggi sul telefono
+fra i dispositivi connessi. Mettilo nella Guida al passo 1 («Indirizzo») o usa `--host`. L'impronta della
+scatola è salvata sotto l'indirizzo USB, per cui va bene in tutti e due i modi.
 
 ## 3. In pista: il cronometro come registratore
 

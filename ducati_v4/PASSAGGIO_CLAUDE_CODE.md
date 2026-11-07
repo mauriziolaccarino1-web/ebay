@@ -63,7 +63,9 @@ o con Claude Code in Remote Control) e poi sul PC di lavoro. Il contesto complet
    ```
    Controlla l'elenco «non trovato» e correggi la raccolta. Aggiungi `privato\struttura.json`, `privato\modello.json`
    e i due file della centralina con i nomi `NOSLICK.bin` e `DIVAC_PRO.bin`, in una sottocartella `calibrazioni`.
-6. **Chiave SSH:** trova in `%USERPROFILE%\.ssh\` la chiave con cui questo PC entra nella scatola R9. Serve al punto B3.
+6. **Chiave SSH:** trova in `%USERPROFILE%\.ssh\` la chiave con cui questo PC entra nella scatola R9: è la riga
+   `IdentityFile` del file `config` sotto l'Host della scatola, altrimenti `id_ed25519` (o `id_rsa`), senza `.pub`.
+   Copiala con AnyDesk sul PC di lavoro come `%USERPROFILE%\.ssh\chiave_casa`. Serve solo al punto B3.
 7. **Porta sul PC di lavoro** `ducati_v4_trasferimento.zip` (e, se serve per B3, la chiave) con il trasferimento
    file di AnyDesk o con OneDrive.
 
@@ -78,9 +80,11 @@ del power mode sfalsate di uno, assi IMU 0x178/0x17C ruotati di circa 56°.
 2. **Dati:** `dvtool.bat pacchetto apri ducati_v4_trasferimento.zip --in privato`, poi estrai lì anche lo zip dei DBC.
    La struttura dei file deve essere `privato\struttura.json`, `privato\modello.json`, `privato\calibrazioni\*.bin` e `privato\can\*.dbc`.
 3. **Accesso alla scatola.** La scatola accetta solo chiavi e il PC di casa non la raggiunge, perché la scatola è con te.
-   - **Soluzione consigliata:** crea una chiave nuova (`ssh-keygen -t ed25519`) e copia per qualche minuto la chiave
-     di casa in `%USERPROFILE%\.ssh\`, con un altro nome. Usala per autorizzare la nuova con
-     `dvtool.bat cronometro autorizza --file %USERPROFILE%\.ssh\id_ed25519.pub`, poi cancella la copia.
+   - **Soluzione consigliata:** crea una chiave nuova (`ssh-keygen -t ed25519`, passphrase vuota), poi autorizzala
+     con la copia temporanea della chiave di casa (A6), con la scatola via USB o sullo stesso hotspot:
+     `dvtool.bat cronometro autorizza --scatola r9 --host <indirizzo> --file %USERPROFILE%\.ssh\id_ed25519.pub --chiave %USERPROFILE%\.ssh\chiave_casa`.
+     Poi cancella la copia: `del %USERPROFILE%\.ssh\chiave_casa`.
+   - Via wifi l'indirizzo della R9 finisce con .206 e il resto cambia a ogni accensione dell'hotspot: leggilo sul telefono.
    - Su Windows le chiavi private devono avere permessi ristretti (`icacls`), altrimenti OpenSSH le rifiuta.
    - Sulla scatola si aggiunge solo una riga alle chiavi autorizzate.
 4. **Guida:** doppio clic su `guida.bat`.

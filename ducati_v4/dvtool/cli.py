@@ -414,6 +414,7 @@ def main(argv=None):
     r.add_argument("--secondi", type=int, default=20, help="durata di 'prova' (registratore senza cambiare niente)")
     r.add_argument("--sessione", help="id/nome della sessione da scaricare (default: l'ultima)")
     r.add_argument("--file", help="file .r9session/.db (per 'tabelle') o chiave .pub (per 'autorizza')")
+    r.add_argument("--chiave", help="per 'autorizza': chiave privata con cui entrare (es. copia temporanea di quella di casa)")
     r.add_argument("--dest", default="privato/acquisizioni")
     r.set_defaults(f=cmd_cronometro)
 
