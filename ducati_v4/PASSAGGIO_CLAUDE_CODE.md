@@ -9,7 +9,9 @@ o con Claude Code in Remote Control) e poi sul PC di lavoro. Il contesto complet
   Divac Pro, pensato per le slick). Verso la centralina motore manda le richieste di coppia su 0x019.
 - Mappe da confrontare: **NOSLICK** e **Divac Pro**. Livelli selezionabili sulla moto: potenza, TC (DTC),
   SCS (DSC), AW (DWC) e freno motore (EBC).
-- Registratore: la scatola H3D Chrono della **R9** (`r9-yccu`, utente `yccu`, USB 169.254.55.1, bus `can1`).
+- Registratore: la scatola H3D Chrono della **R9** (`r9-yccu`, Pi Zero 2 W, utente `yccu`, USB 169.254.55.1,
+  bus `can1` sul morsetto `spi1.1`). La CM4 è servita solo per la prova sulla Streetfighter del 31/10. Sulla R9
+  candump non c'è: registra `registratore_can.py`, che su una scatola vera non ha ancora mai girato.
 - Prima prova in pista: Vallelunga.
 - Si presume che il protocollo sia quello della Streetfighter V4S 2023: 500 kbit/s, ID a 11 bit, contatore in
   B6[3:0] e CRC-8 SAE J1850 in B7. Ruote, piega e TrqSlow/TrqFast **non sono mai stati verificati in moto**.
@@ -84,11 +86,17 @@ del power mode sfalsate di uno, assi IMU 0x178/0x17C ruotati di circa 56°.
 4. **Guida:** doppio clic su `guida.bat`.
    - **Passo 1:** le voci devono essere tutte verdi, tranne le acquisizioni.
    - **Passo 2, con la scatola collegata via USB**, anche se è ancora montata sulla R9: lettura sola. Atteso:
-     hostname `r9-yccu`, `can1` normale, stato dei servizi `r9-can-correlation`/`r9-can`, spazio libero.
+     hostname `r9-yccu`, `can1` normale e **sul morsetto della moto (`spi1.1`)**, stato dei servizi
+     `r9-can-correlation`/`r9-can`, spazio libero, scarto dell'orologio.
+   - **Sempre al passo 2, *Prova il registratore*, con la R9 accesa.** Non cambia niente sulla scatola: 20 s di
+     lettura di can1 così com'è, senza sudo, con i servizi della R9 accesi. È la prima volta che il registratore
+     Python gira su una scatola vera. Annota frame al secondo, frame persi dal registratore, overflow del
+     controller e CPU. Se i frame persi non sono zero, il Pi Zero non tiene il passo: dillo prima della Ducati.
 5. **Prima prova sulla Ducati, in garage**, con la scatola collegata alla presa CAN della moto. Prima di collegare,
    leggi *Collegamento alla presa della Ducati* nel README: pinout non annotato, 60 Ω, tensioni, ponticello da 120 Ω,
-   quadro acceso. Rifai la stessa sequenza della prova CM4 sulla Streetfighter del 31/10, segnando ogni azione con
-   *Segna un momento* (passo 3 della Guida).
+   quadro acceso. Decidi anche come alimentare la scatola: se prende i 12 V dalla moto, a ogni quadro spento si
+   riaccende come per la R9 (can1 normale, dà l'ACK); un power bank lo evita. Rifai la stessa sequenza della prova
+   CM4 sulla Streetfighter del 31/10, segnando ogni azione con *Segna un momento* (passo 3 della Guida).
    - **Passo 3 della Guida:** password di sudo, poi registra.
    - **Sequenza da segnare:**
      1. quadro acceso, fermo per 40 s;
@@ -117,6 +125,8 @@ del power mode sfalsate di uno, assi IMU 0x178/0x17C ruotati di circa 56°.
 ## Cosa riportare alla fine delle verifiche
 
 `verifica_sfv4.md`, `verifica_ducati.md` e l'elenco dei canali confermati o da correggere nel profilo. Poi:
+- l'esito di *Prova il registratore* sulla R9 (frame/s, persi, overflow, CPU) e lo stesso dato letto da
+  *Controlla che stia registrando* sulla Ducati;
 - il segno della piega;
 - i valori dei livelli letti, confrontati con quelli impostati sul cruscotto;
 - l'esito di `calib checksum` sui due originali.

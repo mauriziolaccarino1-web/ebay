@@ -6,10 +6,13 @@ I comandi che cambiano lo stato del momento (prepara, registra, ferma, ripristin
 
 Fatti dalle sessioni precedenti (da ricontrollare sulla scatola che porti in pista):
   * R9:  hostname r9-yccu, Pi Zero 2 W + Waveshare 2-CH CAN HAT+, utente yccu, USB 169.254.55.1,
-         sull'hotspot del telefono l'ultimo ottetto è .206; bus moto = can1; candump NON installato;
-         sudo chiede la password.
+         sull'hotspot del telefono l'ultimo ottetto è .206; bus moto = can1 sul morsetto CAN_0 (spi1.1),
+         can0 (spi1.2) è il bus della lambda; candump NON installato (si usa registratore_can.py);
+         sudo chiede la password. È la scatola che va sulla Ducati.
   * CM4: hostname h3d-cm4, USB 169.254.59.1, candump presente, sudo senza password;
-         usata sulla Streetfighter V4 il 31/10 con can1 in listen-only a 500 kbit/s.
+         usata sulla Streetfighter V4 il 31/10 con can1 (spi1.1) in listen-only a 500 kbit/s.
+  * I nomi can0/can1 dipendono dall'ordine di avvio: prima di toccare il bus si controlla che il nome
+    configurato sia davvero sul morsetto della moto (`presa`, letto da /sys/class/net/canX/device).
   * API r9-app sulla porta 8770, intestazione X-R9-Token (token in app_data/config/token);
          GET /api/health, GET /api/v1/sessions/{id}/package[/info]. Il CAN grezzo NON passa dall'API.
   * Senza GPS i tempi dei registratori r9-can sono solo monotoni: per questo qui si registra in formato
@@ -25,6 +28,7 @@ import os
 import shlex
 import subprocess
 import sys
+import time
 import urllib.request
 
 PREDEFINITI = {
@@ -32,10 +36,10 @@ PREDEFINITI = {
         "r9": {"host": "169.254.55.1", "utente": "yccu", "bus": "can1", "bitrate": 500000,
                "progetto": "/home/yccu/projects/yccu-peer", "porta_api": 8770,
                # i registratori r9 riconfigurano can1 da soli (500k, listen-only OFF): vanno fermati
-               "candump": False, "servizi_da_fermare": ["r9-can-correlation", "r9-can"]},
+               "candump": False, "servizi_da_fermare": ["r9-can-correlation", "r9-can"], "presa": "spi1.1"},
         "cm4": {"host": "169.254.59.1", "utente": "yccu", "bus": "can1", "bitrate": 500000,
                 "progetto": "/home/yccu/projects/yccu-peer", "porta_api": 8770,
-                "candump": True, "servizi_da_fermare": ["h3d-guardiano-cronometro", "h3d-cronometro"]},
+                "candump": True, "servizi_da_fermare": ["h3d-guardiano-cronometro", "h3d-cronometro"], "presa": "spi1.1"},
     },
     "scatola": "r9",
     "cartella_catture": "catture_ducati",
@@ -144,6 +148,30 @@ _FERMA = (_PID + '[ -n "$VIVO" ] && { kill -INT "$VIVO"; sleep 1.5; ' + _PID +
           '[ -n "$VIVO" ] && { kill -TERM "$VIVO"; sleep 1; }; }; ')
 
 
+# /sys della scatola (le prove usano una cartella finta al suo posto)
+_SYS = 'S="${DVTOOL_SYS:-/sys}"; '
+_PRESE = (_SYS + 'for i in "$S"/class/net/can*; do [ -e "$i" ] && echo "$(basename "$i") '
+          '$(basename "$(readlink -e "$i/device" 2>/dev/null)" 2>/dev/null)"; done; ')
+
+
+def _guardia_presa(sc: Scatola) -> str:
+    """Shell: se il nome configurato (can1) dopo questo avvio NON è sul morsetto della moto (spi1.1), si ferma
+    prima di toccare qualsiasi cosa. Senza questo si metterebbe in ascolto il bus della lambda e il morsetto
+    della moto resterebbe com'è."""
+    spi, bus = sc.c.get("presa"), sc.c["bus"]
+    if not spi:
+        return ""
+    return (_SYS + f'PRESA=$(basename "$(readlink -e "$S/class/net/{bus}/device" 2>/dev/null)" 2>/dev/null); '
+            f'if [ -n "$PRESA" ] && [ "$PRESA" != "{spi}" ]; then cat > /dev/null; '
+            f'echo "PRESA_DIVERSA {bus} è sul morsetto $PRESA, non su {spi}"; ' + _PRESE.replace(_SYS, "") + 'exit 3; fi; ')
+
+
+def _spiega_presa(sc: Scatola, out: str) -> str:
+    return (f"Dopo questo avvio {sc.c['bus']} non è il morsetto della moto ({sc.c.get('presa')}): i nomi delle porte CAN "
+            "si sono scambiati. Non è stato cambiato niente. Spegni e riaccendi la scatola e riprova; "
+            "se resta così, annota l'elenco qui sotto e imposta «bus» in privato/cronometro.json.\n" + out.strip())
+
+
 def _ssh(sc: Scatola, comando, ingresso=None, timeout=60):
     args = ["ssh", "-o", "ConnectTimeout=8", "-o", "BatchMode=yes", "-o", f"HostKeyAlias={sc.alias}",
             "-o", "StrictHostKeyChecking=accept-new", sc.dest, comando]
@@ -170,14 +198,18 @@ def _spiega_errore_ssh(err: str) -> str:
 def op_stato(sc: Scatola) -> dict:
     bus, cart = sc.c["bus"], sc.cartella
     cmd = (f'D="$HOME/{cart}"; ' + _PID +
-           f"echo '#HOST'; hostname; echo '#UP'; uptime -p 2>/dev/null || uptime; "
+           f"echo '#HOST'; hostname; echo '#UP'; uptime -p 2>/dev/null || uptime; echo '#ORA'; date +%s.%N; "
            f"echo '#CAN'; ip -details link show {bus} 2>&1 | head -6; "
+           f"echo '#PRESE'; " + _PRESE +
            f"echo '#REG'; [ -n \"$VIVO\" ] && echo \"registratore attivo, PID $VIVO\"; "
+           f"echo '#REGSTATO'; [ -n \"$VIVO\" ] && cat \"$D/.registratore.stato\" 2>/dev/null; echo; "
            f"echo '#FILE'; ls -l --time-style=+%Y-%m-%d_%H:%M:%S ~/{cart}/*.log 2>/dev/null | awk '{{print $5, $6, $7}}'; "
            f"echo '#DISCO'; df -h ~ | tail -1; "
            f"echo '#SERVIZI'; for s in {' '.join(sc.c.get('servizi_da_fermare', []))}; do echo \"$s $(systemctl is-active $s 2>/dev/null)\"; done; "
            f"echo '#FINE'")
+    t0 = time.time()
     rc, out, err = _ssh(sc, cmd, timeout=20)
+    t_pc = (t0 + time.time()) / 2
     if rc != 0:
         return {"ok": False, "errore": _spiega_errore_ssh(err), "dest": sc.dest}
     parti, chiave = {}, None
@@ -193,9 +225,29 @@ def op_stato(sc: Scatola) -> dict:
         x = r.split()
         if len(x) >= 3:
             file.append({"byte": int(x[0]), "data": x[1], "nome": os.path.basename(x[2])})
+    prese = {}
+    for r in parti.get("PRESE", []):
+        x = r.split()
+        if x:
+            prese[x[0]] = x[1] if len(x) > 1 else ""
+    spi = sc.c.get("presa")
+    presa_ok = None if not spi or not prese.get(sc.c["bus"]) else prese[sc.c["bus"]] == spi
+    reg_stato = None
+    testo_stato = " ".join(parti.get("REGSTATO", [])).strip()
+    if testo_stato:
+        try:
+            reg_stato = json.loads(testo_stato)
+        except ValueError:
+            reg_stato = None
+    try:
+        scarto = round(float(parti.get("ORA", ["nan"])[0]) - t_pc, 1)
+    except (ValueError, IndexError):
+        scarto = None
     return {"ok": True, "dest": sc.dest, "hostname": " ".join(parti.get("HOST", [])), "acceso_da": " ".join(parti.get("UP", [])),
             "can": can, "listen_only": "LISTEN-ONLY" in can, "can_su": ",UP" in can or "state UP" in can or "UP," in can,
-            "registratore": [r for r in parti.get("REG", []) if r.strip()], "catture": file,
+            "bus": sc.c["bus"], "presa": spi, "prese": prese, "presa_ok": presa_ok,
+            "orologio_scarto_s": scarto if scarto == scarto else None,
+            "registratore": [r for r in parti.get("REG", []) if r.strip()], "registratore_stato": reg_stato, "catture": file,
             "disco": " ".join(parti.get("DISCO", [])), "servizi": dict(r.split(" ", 1) for r in parti.get("SERVIZI", []) if " " in r)}
 
 
@@ -203,7 +255,7 @@ def op_prepara(sc: Scatola, password: str = "") -> dict:
     """Ferma (solo per ora) i servizi che usano can1 e lo mette in ascolto passivo a 500 kbit/s."""
     bus, br, cart = sc.c["bus"], sc.c["bitrate"], sc.cartella
     servizi = " ".join(sc.c.get("servizi_da_fermare", []))
-    cmd = (f'D="$HOME/{cart}"; mkdir -p "$D"; ATTIVI=""; '
+    cmd = (_guardia_presa(sc) + f'D="$HOME/{cart}"; mkdir -p "$D"; ATTIVI=""; '
            f'for s in {servizi}; do systemctl is-active --quiet "$s" && ATTIVI="$ATTIVI $s"; done; '
            f'echo "$ATTIVI" > "$D/.servizi_attivi_prima"; '
            f'sudo -S -p "" sh -c "for s in $ATTIVI; do systemctl stop \\$s; done; ip link set {bus} down; '
@@ -212,20 +264,28 @@ def op_prepara(sc: Scatola, password: str = "") -> dict:
     rc, out, err = _ssh(sc, cmd, ingresso=(password or "") + "\n", timeout=40)
     ok = rc == 0 and "LISTEN-ONLY" in out
     errore = None
-    if not ok:
+    if "PRESA_DIVERSA" in out:
+        errore = _spiega_presa(sc, out)
+    elif not ok:
         errore = "password di sudo sbagliata o mancante" if "incorrect password" in err.lower() or "password is required" in err.lower() or "sorry" in err.lower() \
             else (_spiega_errore_ssh(err) if rc == 255 else (err.strip() or out.strip())[-400:])
     return {"ok": ok, "testo": out.strip(), "errore": errore}
 
 
-def op_registra(sc: Scatola) -> dict:
-    """Avvia il registratore da una copia temporanea in /tmp (niente installato), catture in ~/catture_ducati."""
-    bus, cart = sc.c["bus"], sc.cartella
+def _script_registratore() -> str:
     with open(os.path.join(QUI, "registratore_can.py"), "r", encoding="utf-8") as f:
-        script = f.read()
-    cmd = (f'D="$HOME/{cart}"; mkdir -p "$D"; ' + _PID +
+        return f.read()
+
+
+def op_registra(sc: Scatola, forza_python: bool = False) -> dict:
+    """Avvia il registratore da una copia temporanea in /tmp (niente installato), catture in ~/catture_ducati.
+    Con candump (CM4) come il 31/10; sulla R9, che non ce l'ha, con registratore_can.py."""
+    bus, cart = sc.c["bus"], sc.cartella
+    script = _script_registratore()
+    con_candump = "false" if forza_python else "command -v candump >/dev/null 2>&1"
+    cmd = (_guardia_presa(sc) + f'D="$HOME/{cart}"; mkdir -p "$D"; ' + _PID +
            f'if [ -n "$VIVO" ]; then cat > /dev/null; echo "GIA_ATTIVO PID $VIVO"; '
-           f'elif command -v candump >/dev/null 2>&1; then cat > /dev/null; '
+           f'elif {con_candump}; then cat > /dev/null; '
            f'F="$D/cattura_$(date +%Y%m%d_%H%M%S).log"; '
            f'setsid nohup candump -L "{bus},0:0,#FFFFFFFF" > "$F" 2>> "$D/candump_err.txt" < /dev/null & '
            f'echo $! > "$D/.registratore.pid"; echo "$(date +%s.%N) INIZIO $(basename "$F") candump bus={bus}" >> "$D/marcatori.txt"; '
@@ -236,8 +296,71 @@ def op_registra(sc: Scatola) -> dict:
            f'[ -n "$VIVO" ] && echo "REGISTRA PID $VIVO" || echo NON_PARTITO; tail -2 "$D/registratore.out" 2>/dev/null; true')
     rc, out, err = _ssh(sc, cmd, ingresso=script, timeout=30)
     ok = rc == 0 and "REGISTRA PID" in out
-    return {"ok": ok, "testo": out.strip(), "gia_attivo": "GIA_ATTIVO" in out,
-            "errore": None if ok else (_spiega_errore_ssh(err) if rc == 255 else out.strip()[-400:])}
+    errore = None
+    if "PRESA_DIVERSA" in out:
+        errore = _spiega_presa(sc, out)
+    elif not ok:
+        errore = _spiega_errore_ssh(err) if rc == 255 else out.strip()[-400:]
+    return {"ok": ok, "testo": out.strip(), "gia_attivo": "GIA_ATTIVO" in out, "errore": errore}
+
+
+def op_prova_registratore(sc: Scatola, secondi: int = 20) -> dict:
+    """Fa girare registratore_can.py per qualche secondo SENZA cambiare niente: can1 resta com'è, i servizi
+    restano accesi, niente sudo. Lavora in una cartella temporanea di /tmp che viene cancellata subito.
+    Si può fare anche con la scatola sulla R9 (un lettore in più su can1 non trasmette nulla): serve a vedere,
+    prima della Ducati, che il registratore gira su questa scatola e quanti frame perde."""
+    secondi = max(3, min(int(secondi), 120))
+    bus = sc.c["bus"]
+    cmd = (_guardia_presa(sc) + f'D="$HOME/{sc.cartella}"; ' + _PID +
+           f'if [ -n "$VIVO" ]; then cat > /dev/null; echo "GIA_ATTIVO PID $VIVO"; exit 0; fi; '
+           f'T=$(mktemp -d /tmp/dvtool_prova.XXXXXX) || exit 4; cat > "$T/{NOME_REG}"; '
+           f'timeout {secondi + 20} python3 "$T/{NOME_REG}" {bus} "$T" --durata {secondi} 2>&1 | tail -6; '
+           f'rm -rf "$T"; echo "#CAN"; ip -details link show {bus} 2>&1 | head -3')
+    rc, out, err = _ssh(sc, cmd, ingresso=_script_registratore(), timeout=secondi + 45)
+    if rc == 255:
+        return {"ok": False, "errore": _spiega_errore_ssh(err), "testo": ""}
+    if "PRESA_DIVERSA" in out:
+        return {"ok": False, "errore": _spiega_presa(sc, out), "testo": out.strip()}
+    if "GIA_ATTIVO" in out:
+        return {"ok": False, "errore": "c'è già una registrazione in corso: usa «Controlla che stia registrando»", "testo": out.strip()}
+    riassunto = None
+    for r in out.splitlines():
+        if r.startswith("RIASSUNTO "):
+            try:
+                riassunto = json.loads(r[len("RIASSUNTO "):])
+            except ValueError:
+                pass
+    if riassunto is None:
+        return {"ok": False, "errore": "il registratore non è partito su questa scatola:\n" + (out.strip() or err.strip())[-600:],
+                "testo": out.strip()}
+    can = out.split("#CAN", 1)[1].strip() if "#CAN" in out else ""
+    return {"ok": True, "riassunto": riassunto, "giudizio": giudica_prova(riassunto), "can": can,
+            "listen_only": "LISTEN-ONLY" in can, "testo": out.strip()}
+
+
+def giudica_prova(r: dict) -> list:
+    """Frasi in chiaro sul risultato della prova del registratore."""
+    g = []
+    if not r.get("frame"):
+        g.append("Nessun frame: il bus è muto (moto spenta o quadro spento?) o il cavo non è sul morsetto della moto. "
+                 "Il registratore però è partito: su questa scatola funziona.")
+        return g
+    g.append(f"{r['frame']} frame in {r['secondi']} s ({r['frame_al_s']:.0f} al secondo), ID diversi: {r.get('id', '?')}.")
+    if r.get("persi_socket") is None:
+        g.append("Il conteggio dei frame persi dal socket non è disponibile su questa scatola.")
+    elif r["persi_socket"] == 0:
+        g.append("Nessun frame perso dal registratore: il Pi tiene il passo.")
+    else:
+        g.append(f"Il registratore ha perso {r['persi_socket']} frame: il Pi non tiene il passo (CPU {r.get('cpu_pct')}%).")
+    if r.get("overflow"):
+        al_min = 60 * r["overflow"] / max(r["secondi"], 1e-6)
+        g.append(f"{r['overflow']} overflow del controller MCP2515 ({al_min:.0f} al minuto). Il 31/10 con la CM4 erano "
+                 "15 al minuto: vengono contati a parte nella verifica del protocollo.")
+    else:
+        g.append("Nessun overflow del controller.")
+    g.append("Tempi del kernel: sì." if r.get("tempo_kernel") else "Tempi del kernel non disponibili: si usa l'ora del programma (meno precisa).")
+    g.append(f"CPU del registratore: {r.get('cpu_pct')}% di un core.")
+    return g
 
 
 def op_marca(sc: Scatola, testo: str) -> dict:
@@ -303,6 +426,10 @@ def stato(sc: Scatola):
         print("!", r["errore"])
         return
     print(f"{r['hostname']} ({r['dest']}) · acceso {r['acceso_da']} · disco {r['disco']}")
+    if r.get("orologio_scarto_s") is not None:
+        print(f"orologio della scatola: {r['orologio_scarto_s']:+.1f} s rispetto al PC")
+    print("porte CAN:", ", ".join(f"{k} = {v or '?'}" for k, v in r.get("prese", {}).items()) or "?",
+          "" if r.get("presa_ok") is not False else f"  !! {r['bus']} NON è il morsetto della moto ({r['presa']})")
     print(r["can"])
     print(">> can1 in LISTEN-ONLY (non disturba il bus della moto)" if r["listen_only"] else ">> can1 NON è in listen-only")
     print("registratore:", r["registratore"] or "fermo")
@@ -332,8 +459,21 @@ def ripristina(sc: Scatola, a):
 
 def registra(sc: Scatola, a):
     if _conferma("Avvio la registrazione (copia temporanea in /tmp, niente installato)?", a):
-        r = op_registra(sc)
+        r = op_registra(sc, forza_python=getattr(a, "python", False))
         print(r["testo"] if r["ok"] else "! " + str(r["errore"]))
+
+
+def prova(sc: Scatola, a):
+    sec = int(getattr(a, "secondi", None) or 20)
+    print(f"Prova del registratore per {sec} s: legge {sc.c['bus']} com'è, non ferma servizi, non usa sudo, "
+          "non lascia file (cartella temporanea in /tmp cancellata subito). Va bene anche sulla R9.")
+    r = op_prova_registratore(sc, sec)
+    if not r["ok"]:
+        print("!", r["errore"])
+        return
+    for g in r["giudizio"]:
+        print(" -", g)
+    print(" can:", "LISTEN-ONLY" if r["listen_only"] else "normale", "(non è stato cambiato)")
 
 
 def ferma(sc: Scatola, a):
@@ -420,6 +560,7 @@ def cli(a):
     {"stato": lambda: stato(sc), "elenco": lambda: elenco(sc), "scarica": lambda: scarica(sc, a),
      "prepara": lambda: prepara(sc, a), "ripristina": lambda: ripristina(sc, a),
      "registra": lambda: registra(sc, a), "ferma": lambda: ferma(sc, a), "pacchetto": lambda: pacchetto(sc, a),
+     "prova": lambda: prova(sc, a),
      "autorizza": lambda: autorizza(sc, a)}[a.azione]()
 
 

@@ -9,7 +9,7 @@ Strumenti per:
 | bisogno | strumento |
 |---|---|
 | portare dati e decodifica dal PC di casa a quello di lavoro | `dvtool pacchetto` (zip con impronte sha256) + questo repository |
-| usare il cronometro R9 (o la CM4) **solo come registratore** CAN sulla Ducati | `dvtool cronometro` + `dvtool/registratore_can.py` |
+| usare la scatola del cronometro della R9 **solo come registratore** CAN sulla Ducati | `dvtool cronometro` + `dvtool/registratore_can.py` |
 | tempi sul giro **senza antenna GPS**, dalla distanza percorsa | `dvtool giri` (anche dentro `sessione`) |
 | verificare che la moto usi il protocollo della Streetfighter V4S | `dvtool can verifica` + scheda *Protocollo CAN* |
 | vedere quale ramo dei controlli lavora, dove è il punto attuale, quanto manca a ogni soglia (4 criteri) | visualizzatore, schede *Criteri e rami* e *Schema software* |
@@ -89,21 +89,25 @@ Si sposta solo la chiave **pubblica**; la privata resta sul PC di lavoro.
 
 ## 3. In pista: il cronometro come registratore
 
-Fatti dalle sessioni precedenti, da ricontrollare sulla scatola che porti:
+Sulla Ducati va la **scatola della R9**. La CM4 è quella usata il 31/10 sulla Streetfighter: da quella prova
+vengono le indicazioni, ma la scatola è un'altra. Fatti dalle sessioni precedenti, da ricontrollare:
 
-| | R9 (`r9-yccu`) | CM4 (`h3d-cm4`) |
+| | R9 (`r9-yccu`): va sulla Ducati | CM4 (`h3d-cm4`): prova SFV4 del 31/10 |
 |---|---|---|
+| hardware | Pi Zero 2 W + Waveshare 2-CH CAN HAT+ (MCP2515) | CM4 + CAN HAT (MCP2515, 8 MHz) |
 | indirizzo via USB | 169.254.55.1 | 169.254.59.1 |
 | utente SSH | yccu | yccu |
-| bus moto | can1 (MCP2515) | can1 (MCP2515) |
-| candump | non installato (non serve) | presente (non serve) |
+| bus moto | can1 sul morsetto CAN_0 (`spi1.1`); can0 (`spi1.2`) è la lambda | can1 (`spi1.1`) |
+| registrazione | `registratore_can.py` di questi strumenti (candump non c'è) | `candump -L` |
 | sudo | chiede la password | senza password |
+| provata sulla Ducati | **no**: la prima volta sarà in garage | sì, Streetfighter V4 2023 |
 
 Bus Ducati: 500 kbit/s, ID a 11 bit. Il cronometro **deve stare in listen-only**: non dà l'ACK e non può
 trasmettere nulla sul bus della moto.
 
 ```
-py -m dvtool cronometro stato    --scatola r9          # risponde? can1 com'è? servizi attivi?
+py -m dvtool cronometro stato    --scatola r9          # risponde? can1 com'è? è il morsetto della moto? servizi attivi?
+py -m dvtool cronometro prova    --scatola r9          # 20 s di registratore senza cambiare niente (anche sulla R9)
 py -m dvtool cronometro prepara  --scatola r9          # ferma per ora i registratori r9, can1 a 500k in LISTEN-ONLY
 py -m dvtool cronometro registra --scatola r9          # avvia la registrazione in ~/catture_ducati/
    ... turno in pista ...
@@ -135,13 +139,36 @@ telefono: sulla R9 l'ultimo ottetto è sempre .206). Le impostazioni si possono 
 - **Bus muto a quadro spento:** la prima volta, il 31/10, sono arrivati 0 frame proprio per questo. Ci vuole il quadro acceso.
 - **Overflow dell'MCP2515:** il controller della scatola perde qualche frame (12 overflow in 48 s, circa 1650 frame/s). I frame di errore (`20000004#...`) vengono registrati e contati a parte nella verifica del protocollo, che dice anche quanti frame mancano per ID.
 
-**CM4 al posto della R9.** La scatola CM4 (`h3d-cm4`, USB 169.254.59.1) è quella già provata sulla Streetfighter: ha `candump` e il sudo senza password. Se è disponibile, usarla sulla Panigale lascia la scatola della R9 del tutto intatta. Gli strumenti funzionano con tutte e due: con la CM4 la registrazione usa `candump -L "can1,0:0,#FFFFFFFF"`, come il 31/10. Nella Guida basta scegliere «CM4» al passo 1.
+**Dalla CM4 della Streetfighter alla scatola della R9.** Quello che il 31/10 ha provato vale anche qui: stesso
+controller MCP2515 sullo stesso morsetto `spi1.1`, listen-only a 500 kbit/s, stessi overflow (sulla R9 visti
+anche il 30/10). Quello che sulla R9 **non è ancora provato**, e come lo coprono gli strumenti:
+- **Registratore.** Sulla R9 candump non c'è e non si installa: gira `registratore_can.py`, mandato via SSH in `/tmp`.
+  Scrive lo stesso formato `candump -L`, compresi i frame di errore, e in più conta i frame che il Pi
+  stesso non fa in tempo a leggere (`SO_RXQ_OVFL`), separati dagli overflow del controller.
+  - **Prova prima della Ducati:** *Prova il registratore* nella Guida (passo 2) o `cronometro prova`. Lo fa girare
+    20 s leggendo can1 così com'è: niente sudo, servizi della R9 accesi, porta non toccata, cartella temporanea
+    cancellata. Si può fare con la scatola sulla R9 accesa, perché un lettore in più non trasmette nulla.
+    Riporta frame al secondo, frame persi, overflow e CPU.
+- **Pi Zero 2 W.** È molto meno potente della CM4. La prova e *Controlla che stia registrando* dicono se tiene il passo.
+- **Nomi delle porte.** `can0`/`can1` dipendono dall'ordine di avvio. Prima di toccare il bus, *prepara*,
+  *registra* e *prova* controllano che `can1` sia davvero sul morsetto della moto (`spi1.1`). Se non lo è si
+  fermano senza cambiare niente; di solito basta spegnere e riaccendere la scatola.
+- **Alimentazione.** Il 31/10 la CM4 non era alimentata dalla moto. Se la scatola della R9 prende i 12 V dalla
+  presa Ducati, a quadro spento si spegne e alla riaccensione torna come per la R9: servizi accesi e can1 normale,
+  cioè dà l'ACK sul bus della Ducati. Prima di uscire premi *Controlla che stia registrando*, che lo riconosce, e
+  se serve rifai il passo 3. Se il cablaggio lo permette, è meglio un power bank. Il registratore scrive su SD
+  ogni 2 s, così uno spegnimento brusco perde al massimo gli ultimi 2 s.
+- **Orologio.** Il Pi Zero non ha l'orologio a batteria e via USB non riceve l'ora: *stato* mostra lo scarto
+  rispetto al PC. Catture e segni usano lo stesso orologio della scatola, quindi restano allineati fra loro.
+
+La CM4 resta configurata negli strumenti (`--scatola cm4` o «CM4» al passo 1): se la usi, registra con candump come il 31/10.
 
 **Marcatori.** Il 31/10 ogni azione in garage era segnata con l'ora: quadro acceso, gas tre volte, leve dei freni, marce, livelli dal menu, motore. Così si è visto subito quale campo si muoveva, e 28 campi sono stati confermati. Nella Guida, al passo 3, *Segna un momento* fa lo stesso: i segni finiscono in `marcatori.txt` con l'orologio della scatola, vengono scaricati con le catture e compaiono sulla linea del tempo e in *Acquisizione*.
 
 Note:
 
 - Se la scatola si spegne con la moto, alla riaccensione è tornata come per la R9: rifai *prepara* e *registra* (passo 3 della Guida).
+- Sulla R9 il registratore Python lascia `.registratore.stato` (frame/s, persi, overflow, CPU) aggiornato ogni 5 s, e a fine registrazione la riga `FINE` in `marcatori.txt` con i totali.
 - Il formato registrato è quello di `candump -L` (come la cattura SFV4 del 31/10), letto direttamente da tutti i comandi.
 - Senza GPS l'orologio della scatola può essere sbagliato: per l'analisi contano solo i tempi relativi.
 - L'MCP2515 a questo carico perde qualche frame (12 overflow in 48 s sulla SFV4): la verifica del protocollo li conta per ID.

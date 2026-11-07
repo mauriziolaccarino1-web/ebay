@@ -95,12 +95,28 @@
   }
 
   // ---- 2
+  function testoPrese(r) {
+    const elenco = Object.entries(r.prese || {}).map(([k, v]) => `${k} → ${v || "?"}`).join(", ");
+    if (r.presa_ok === false) return `⚠ ${r.bus} NON è il morsetto della moto (${r.presa}): i nomi si sono scambiati all'avvio. Spegni e riaccendi la scatola. (${elenco})`;
+    if (r.presa_ok === true) return `✓ ${r.bus} è il morsetto della moto (${r.presa}) · ${elenco}`;
+    return elenco || "non lette";
+  }
+  function testoRegistratore(r) {
+    if (!r.registratore.length) return "fermo";
+    const s = r.registratore_stato;
+    if (!s) return "● " + r.registratore.join(", ");
+    const persi = s.persi_socket == null ? "persi ?" : `persi ${s.persi_socket} dall'avvio`;
+    return `● ${r.registratore.join(", ")} · ${Math.round(s.frame_al_s)} frame/s · ${persi} · overflow ${s.overflow} · CPU ${s.cpu_pct}%`;
+  }
   function schedaStato(r) {
     if (!r.ok) return el("div", {}, el("p", {}, r.errore));
+    const scarto = r.orologio_scarto_s;
     return el("div", { class: "campi" },
       el("span", {}, "Scatola"), el("span", {}, `${r.hostname} (${r.dest}) · accesa ${r.acceso_da}`),
+      el("span", {}, "Porte CAN"), el("span", {}, testoPrese(r)),
       el("span", {}, "Porta CAN"), el("span", {}, r.listen_only ? "✓ in ascolto (LISTEN-ONLY): non disturba il bus" : "normale (come per la R9)"),
-      el("span", {}, "Registratore"), el("span", {}, r.registratore.length ? "● " + r.registratore.join(", ") : "fermo"),
+      el("span", {}, "Orologio"), el("span", {}, scarto == null ? "?" : `${scarto > 0 ? "+" : ""}${scarto.toFixed(1)} s rispetto al PC${Math.abs(scarto) > 120 ? " (senza GPS e senza rete conta solo il tempo relativo)" : ""}`),
+      el("span", {}, "Registratore"), el("span", {}, testoRegistratore(r)),
       el("span", {}, "Catture"), el("span", {}, r.catture.length ? r.catture.map((f) => `${f.nome} ${mb(f.byte)}`).join(" · ") : "nessuna"),
       el("span", {}, "Disco"), el("span", {}, r.disco));
   }
@@ -115,6 +131,18 @@
       mostra(box, r.ok, r.ok ? "Collegamento riuscito" : "Collegamento non riuscito", schedaStato(r));
       if (r.ok) { fatti.add(1); box.append(el("div", { class: "azioni" }, avanti(2))); disegnaPassi(); }
     } }, "Prova il collegamento")), box));
+    // la R9 non ha candump: il registratore Python va provato su questa scatola prima della Ducati
+    const box2 = el("div");
+    main.append(el("div", { class: "scheda" }, el("h3", {}, "Prova il registratore (20 s, non cambia niente)"),
+      el("p", { class: "nota" }, "Sulla Streetfighter la CM4 registrava con candump; la scatola della R9 non ce l'ha e usa il registratore di questi strumenti. " +
+        "Questa prova lo fa girare per 20 s leggendo can1 così com'è: niente sudo, servizi della R9 accesi, porta non toccata, nessun file lasciato. " +
+        "Va bene anche con la scatola sulla R9 accesa: dice quanti frame al secondo arrivano e se se ne perdono."),
+      el("div", { class: "azioni" }, el("button", { class: "bottone", onclick: async () => {
+        const r = await esegui(box2, "registro per 20 s…", () => api("POST", "/api/cronometro/prova_registratore", { secondi: 20 }));
+        if (!r) return;
+        mostra(box2, r.ok, r.ok ? "Il registratore gira su questa scatola" : "Prova non riuscita",
+          r.ok ? el("ul", {}, ...r.giudizio.map((g) => el("li", {}, g)), el("li", {}, `Porta CAN: ${r.listen_only ? "in ascolto" : "normale"}, lasciata com'era.`)) : el("pre", {}, r.errore || ""));
+      } }, "Prova il registratore")), box2));
   }
 
   // ---- 3
@@ -145,10 +173,15 @@
         const b = await api("POST", "/api/cronometro/stato", {});
         const tot = (r) => (r.catture || []).reduce((s, f) => s + f.byte, 0);
         const cresce = tot(b) > tot(a);
-        mostra(box2, b.ok && b.registratore.length && cresce, b.ok ? (cresce ? `Sta registrando: +${((tot(b) - tot(a)) / 1e3).toFixed(0)} kB in 3 s` : "Il file non cresce: la moto è accesa? il CAN è collegato?") : "Scatola non raggiungibile", schedaStato(b));
+        const riavviata = b.ok && !b.registratore.length && !b.listen_only;
+        mostra(box2, b.ok && b.registratore.length && cresce, !b.ok ? "Scatola non raggiungibile"
+          : riavviata ? "La scatola è tornata come per la R9 (si è spenta e riaccesa?): rifai «Metti in ascolto e avvia la registrazione»"
+            : cresce ? `Sta registrando: +${((tot(b) - tot(a)) / 1e3).toFixed(0)} kB in 3 s` : "Il file non cresce: la moto è accesa? il CAN è collegato?", schedaStato(b));
       } }, "Controlla che stia registrando")), box, box2),
       schedaMarcatori(),
-      el("p", { class: "nota" }, "Se spegni la moto e la scatola si spegne con lei, alla riaccensione ripeti questo passo: dopo lo spegnimento la scatola torna come per la R9."),
+      el("p", { class: "nota" }, "Se la scatola prende corrente dalla moto, a quadro spento si spegne e alla riaccensione torna come per la R9: servizi della R9 accesi e can1 normale, " +
+        "cioè dà l'ACK sul bus della Ducati. Prima di uscire premi «Controlla che stia registrando» e, se serve, ripeti questo passo. " +
+        "Meglio ancora, se il cablaggio della scatola lo permette, alimentala da un power bank: resta accesa e in ascolto tutto il giorno."),
       avanti(3));
   }
 

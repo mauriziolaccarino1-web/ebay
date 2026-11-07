@@ -9,7 +9,7 @@ Comandi principali
   calib       elenco | mostra | confronta | applica | checksum | cerca-checksum   sul file della centralina
   pacchetto   crea | apri | verifica   per portare i dati da un PC all'altro
   progetto    prepara la cartella del visualizzatore (più calibrazioni, es. NOSLICK e SLICK)
-  cronometro  stato | prepara | registra | ferma | scarica | ripristina   per la scatola H3D Chrono (R9/CM4)
+  cronometro  stato | prova | prepara | registra | ferma | scarica | ripristina   per la scatola H3D Chrono (R9/CM4)
   visualizza  avvia il visualizzatore nel browser (server locale, nessuna installazione)
 """
 from __future__ import annotations
@@ -403,7 +403,7 @@ def main(argv=None):
     t.set_defaults(f=cmd_pacchetto)
 
     r = sp.add_parser("cronometro", help="scatola H3D Chrono (R9) usata come registratore")
-    r.add_argument("azione", choices=["stato", "prepara", "registra", "ferma", "elenco", "scarica",
+    r.add_argument("azione", choices=["stato", "prova", "prepara", "registra", "ferma", "elenco", "scarica",
                                       "ripristina", "pacchetto", "tabelle", "autorizza"])
     r.add_argument("--scatola", help="r9 | cm4 (default dal file privato/cronometro.json, altrimenti r9)")
     r.add_argument("--host", default=os.environ.get("H3D_HOST"), help="IP della scatola (USB o hotspot)")
@@ -411,6 +411,7 @@ def main(argv=None):
     r.add_argument("--config")
     r.add_argument("--python", action="store_true", help="usa registratore_can.py anche se c'è candump")
     r.add_argument("--si", action="store_true", help="non chiedere conferma")
+    r.add_argument("--secondi", type=int, default=20, help="durata di 'prova' (registratore senza cambiare niente)")
     r.add_argument("--sessione", help="id/nome della sessione da scaricare (default: l'ultima)")
     r.add_argument("--file", help="file .r9session/.db (per 'tabelle') o chiave .pub (per 'autorizza')")
     r.add_argument("--dest", default="privato/acquisizioni")

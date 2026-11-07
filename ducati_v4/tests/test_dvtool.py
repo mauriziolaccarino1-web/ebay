@@ -5,11 +5,17 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 import numpy as np
 
 QUI = os.path.dirname(os.path.abspath(__file__))
+
+
+def leggi_testo(p):
+    with open(p) as f:
+        return f.read()
 
 
 def leggi_json(p):
@@ -245,7 +251,13 @@ class ProvaCronometroScatolaFinta(unittest.TestCase):
         self.assertTrue(r["ok"], r)
         self.assertTrue(c.op_registra(sc)["gia_attivo"])
         self.assertTrue(c.op_marca(sc, "TC cambiato")["ok"])
-        self.assertTrue(c.op_stato(sc)["listen_only"])
+        time.sleep(1.5)
+        st = c.op_stato(sc)
+        self.assertTrue(st["listen_only"])
+        self.assertIsNotNone(st["orologio_scarto_s"])
+        self.assertLess(abs(st["orologio_scarto_s"]), 2)
+        if nome == "r9":   # il registratore Python scrive il suo stato (frame/s, persi, overflow, CPU)
+            self.assertGreater(st["registratore_stato"]["frame"], 0, st)
         self.assertTrue(c.op_ferma(sc)["ok"])
         d = os.path.join(self.M, "scaricati")
         r = c.op_scarica(sc, d)
@@ -258,7 +270,64 @@ class ProvaCronometroScatolaFinta(unittest.TestCase):
         return d
 
     def test_r9_senza_candump(self):
-        self._ciclo("r9", "r9-can-correlation")
+        d = self._ciclo("r9", "r9-can-correlation")
+        log = canlog.leggi(os.path.join(d, next(f for f in os.listdir(d) if f.endswith(".log"))))
+        self.assertEqual(set(int(x) for x in log.id), {0x18})          # registratore vero, socket finto
+        self.assertGreater(log.errori["overflow_rx"], 0)
+        self.assertLess(abs(float(log.t[-1]) - time.time()), 60)       # tempo del kernel, epoca
+        with open(os.path.join(d, "marcatori.txt")) as f:
+            fine = [r for r in f if " FINE " in r]
+        self.assertEqual(len(fine), 1)
+        self.assertIn("persi_socket=", fine[0])
+
+    def _r9(self):
+        open(os.path.join(self.M, "stato", "attivo_r9-can-correlation"), "w").close()
+        return self.c.Scatola(self.c.configurazione(os.path.join(self.M, "nessuno.json")), "r9")
+
+    def _prese(self, mappa):
+        S = os.path.join(self.M, "sys")
+        for nome, spi in mappa.items():
+            os.makedirs(os.path.join(S, "devices", spi), exist_ok=True)
+            os.makedirs(os.path.join(S, "class", "net", nome), exist_ok=True)
+            os.symlink(os.path.join(S, "devices", spi), os.path.join(S, "class", "net", nome, "device"))
+        os.environ["DVTOOL_SYS"] = S
+        self.addCleanup(os.environ.pop, "DVTOOL_SYS", None)
+
+    def _niente_cambiato(self):
+        self.assertTrue(os.path.exists(os.path.join(self.M, "stato", "attivo_r9-can-correlation")))
+        reg = os.path.join(self.M, "stato", "registro")
+        self.assertFalse(os.path.exists(reg) and leggi_testo(reg).strip(), "comandi eseguiti sulla scatola")
+
+    def test_prova_registratore_non_cambia_niente(self):
+        import glob
+        prima = set(glob.glob("/tmp/dvtool_prova.*"))
+        sc = self._r9()
+        self._prese({"can0": "spi1.2", "can1": "spi1.1"})
+        r = self.c.op_prova_registratore(sc, 3)
+        self.assertTrue(r["ok"], r)
+        R = r["riassunto"]
+        self.assertGreater(R["frame"], 300)
+        self.assertGreater(R["overflow"], 0)
+        self.assertGreaterEqual(R["persi_socket"], 1)
+        self.assertTrue(R["tempo_kernel"])
+        self.assertTrue(any("perso" in g for g in r["giudizio"]))
+        self._niente_cambiato()
+        self.assertEqual(set(glob.glob("/tmp/dvtool_prova.*")), prima)    # cartella temporanea cancellata
+        self.assertFalse(os.path.exists(os.path.join(self.M, "home", "catture_ducati")))
+        self.assertTrue(self.c.op_stato(sc)["presa_ok"])
+
+    def test_porte_scambiate_dopo_avvio(self):
+        sc = self._r9()
+        self._prese({"can0": "spi1.1", "can1": "spi1.2"})   # can1 è finito sul morsetto della lambda
+        st = self.c.op_stato(sc)
+        self.assertEqual(st["prese"], {"can0": "spi1.1", "can1": "spi1.2"})
+        self.assertFalse(st["presa_ok"])
+        for r in (self.c.op_prepara(sc, "segreta"), self.c.op_registra(sc), self.c.op_prova_registratore(sc, 3)):
+            self.assertFalse(r["ok"])
+            self.assertIn("scambiat", r["errore"])
+        self._niente_cambiato()
+        p_can = os.path.join(self.M, "stato", "can1")
+        self.assertFalse(os.path.exists(p_can) and leggi_testo(p_can).strip() == "on")
 
     def test_cm4_con_candump(self):
         p = os.path.join(self.M, "bin", "candump")
@@ -271,6 +340,26 @@ class ProvaCronometroScatolaFinta(unittest.TestCase):
         self.assertEqual(set(int(x) for x in log.id), {0x18})          # l'overflow non diventa l'ID 0x004
         self.assertEqual(log.errori["overflow_rx"], log.errori["n"])
         self.assertGreater(log.errori["n"], 0)
+
+
+class ProvaRegistratore(unittest.TestCase):
+    def test_tempo_32_e_64_bit_e_frame(self):
+        import socket
+        import struct
+        from dvtool import registratore_can as R
+        t, p = R.ancillari([(socket.SOL_SOCKET, R.SO_TIMESTAMPNS, struct.pack("qq", 1794035528, 316057053)),
+                            (socket.SOL_SOCKET, R.SO_RXQ_OVFL, struct.pack("I", 7))])
+        self.assertAlmostEqual(t, 1794035528.316057, places=5)
+        self.assertEqual(p, 7)
+        t, p = R.ancillari([(socket.SOL_SOCKET, R.SO_TIMESTAMPNS, struct.pack("ii", 1794035528, 500000000))])
+        self.assertAlmostEqual(t, 1794035528.5, places=5)   # timespec a 32 bit (Raspberry Pi OS armhf)
+        self.assertIsNone(p)
+        fr = lambda i, d: struct.pack("=IB3x8s", i, len(d), bytes(d).ljust(8, b"\0"))
+        self.assertEqual(R.riga(fr(0x018, range(8)), 1.5, "can1"), ("(1.500000) can1 018#0001020304050607\n", False, False))
+        self.assertEqual(R.riga(fr(0x20000004, [0, 1, 0, 0, 0, 0, 0, 0]), 1.5, "can1")[1:], (True, True))
+        self.assertTrue(R.riga(fr(0x20000004, [0, 1, 0, 0, 0, 0, 0, 0]), 1.5, "can1")[0].startswith("(1.500000) can1 20000004#0001"))
+        self.assertEqual(R.riga(fr(0x80000000 | 0x18DAF110, [1, 2]), 2.0, "can1")[0], "(2.000000) can1 18DAF110#0102\n")
+        self.assertEqual(R.riga(fr(0x40000000 | 0x123, []), 2.0, "can1")[0], "(2.000000) can1 123#R\n")
 
 
 class ProvaFineAFine(unittest.TestCase):

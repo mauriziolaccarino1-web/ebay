@@ -126,6 +126,8 @@ def op_cronometro(azione: str, dati: dict) -> dict:
         return {"ok": r2["ok"], "errore": r2.get("errore"), "testo": r1["testo"] + "\n" + r2["testo"], "passo": "registra"}
     if azione == "registra":
         return cronometro.op_registra(sc)
+    if azione == "prova_registratore":
+        return cronometro.op_prova_registratore(sc, int(dati.get("secondi") or 20))
     if azione == "ferma":
         return cronometro.op_ferma(sc)
     if azione == "marca":
