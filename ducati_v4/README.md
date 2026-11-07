@@ -124,6 +124,21 @@ Ogni comando che cambia qualcosa sulla scatola mostra cosa eseguirà e chiede co
 cancellato nulla; `scarica` confronta le impronte sha256. Con `--host` usi un altro indirizzo (es. hotspot del
 telefono: sulla R9 l'ultimo ottetto è sempre .206). Le impostazioni si possono fissare in `privato/cronometro.json`.
 
+
+**Collegamento alla presa della Ducati.** Sono le indicazioni della prova con la CM4 sulla Streetfighter, il 31/10.
+- **Pinout:** quello della presa Ducati non è mai stato annotato. Il pinout YDT a 6 poli (bianco CAN-H, verde acqua CAN-L, rosso +12 V, nero massa) è della Yamaha, non vale per la Ducati.
+- **Misure prima di collegare:**
+  - a quadro spento, fra CAN-H e CAN-L circa **60 Ω**: le due terminazioni della moto;
+  - a quadro acceso, CAN-H 2,5-3,5 V e CAN-L 1,5-2,5 V verso massa;
+  - +12 V e massa si trovano con il tester.
+- **Terminazione da 120 Ω:** sulla CM4 il ponticello era stato **tolto**, perché la moto ha già le sue. Se la scheda CAN della scatola R9 ha la terminazione inserita, toglila per la Ducati e **rimettila prima di rimontare la scatola sulla R9**. Con la scatola collegata, la misura deve restare intorno a 60 Ω: 40 Ω vuol dire una terminazione in più.
+- **Bus muto a quadro spento:** la prima volta, il 31/10, sono arrivati 0 frame proprio per questo. Ci vuole il quadro acceso.
+- **Overflow dell'MCP2515:** il controller della scatola perde qualche frame (12 overflow in 48 s, circa 1650 frame/s). I frame di errore (`20000004#...`) vengono registrati e contati a parte nella verifica del protocollo, che dice anche quanti frame mancano per ID.
+
+**CM4 al posto della R9.** La scatola CM4 (`h3d-cm4`, USB 169.254.59.1) è quella già provata sulla Streetfighter: ha `candump` e il sudo senza password. Se è disponibile, usarla sulla Panigale lascia la scatola della R9 del tutto intatta. Gli strumenti funzionano con tutte e due: con la CM4 la registrazione usa `candump -L "can1,0:0,#FFFFFFFF"`, come il 31/10. Nella Guida basta scegliere «CM4» al passo 1.
+
+**Marcatori.** Il 31/10 ogni azione in garage era segnata con l'ora: quadro acceso, gas tre volte, leve dei freni, marce, livelli dal menu, motore. Così si è visto subito quale campo si muoveva, e 28 campi sono stati confermati. Nella Guida, al passo 3, *Segna un momento* fa lo stesso: i segni finiscono in `marcatori.txt` con l'orologio della scatola, vengono scaricati con le catture e compaiono sulla linea del tempo e in *Acquisizione*.
+
 Note:
 
 - Se la scatola si spegne con la moto, alla riaccensione è tornata come per la R9: rifai *prepara* e *registra* (passo 3 della Guida).

@@ -209,6 +209,70 @@ class ProvaGuida(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.cart, "privato", "calibrazioni", "modificati")))
 
 
+@unittest.skipUnless(shutil.which("bash") and os.name == "posix", "serve bash (Linux)")
+class ProvaCronometroScatolaFinta(unittest.TestCase):
+    """Ciclo completo contro una scatola finta (ssh, sudo, ip, systemctl simulati in tests/scatola_finta)."""
+
+    def setUp(self):
+        from dvtool import cronometro
+        self.c = cronometro
+        self.M = tempfile.mkdtemp()
+        os.makedirs(os.path.join(self.M, "home")); os.makedirs(os.path.join(self.M, "stato"))
+        shutil.copytree(os.path.join(QUI, "scatola_finta"), os.path.join(self.M, "bin"))
+        self.env = (os.environ.get("SCATOLA"), os.environ["PATH"])
+        os.environ["SCATOLA"] = self.M
+        os.environ["PATH"] = os.path.join(self.M, "bin") + os.pathsep + os.environ["PATH"]
+
+    def tearDown(self):
+        if self.env[0] is None:
+            os.environ.pop("SCATOLA", None)
+        else:
+            os.environ["SCATOLA"] = self.env[0]
+        os.environ["PATH"] = self.env[1]
+        shutil.rmtree(self.M)
+
+    def _ciclo(self, nome, servizio):
+        c = self.c
+        open(os.path.join(self.M, "stato", "attivo_" + servizio), "w").close()
+        sc = c.Scatola(c.configurazione(os.path.join(self.M, "nessuno.json")), nome)
+        self.assertFalse(c.op_prepara(sc, "sbagliata")["ok"])
+        p_can = os.path.join(self.M, "stato", "can1")
+        if os.path.exists(p_can):
+            with open(p_can) as f:
+                self.assertNotEqual(f.read().strip(), "on")   # password sbagliata: can1 non cambia
+        self.assertTrue(c.op_prepara(sc, "segreta")["ok"])
+        r = c.op_registra(sc)
+        self.assertTrue(r["ok"], r)
+        self.assertTrue(c.op_registra(sc)["gia_attivo"])
+        self.assertTrue(c.op_marca(sc, "TC cambiato")["ok"])
+        self.assertTrue(c.op_stato(sc)["listen_only"])
+        self.assertTrue(c.op_ferma(sc)["ok"])
+        d = os.path.join(self.M, "scaricati")
+        r = c.op_scarica(sc, d)
+        self.assertTrue(r["ok"], r)
+        with open(os.path.join(d, "marcatori.txt")) as f:
+            self.assertIn("TC cambiato", f.read())
+        self.assertTrue(c.op_ripristina(sc, "segreta")["ok"])
+        self.assertTrue(os.path.exists(os.path.join(self.M, "stato", "attivo_" + servizio)))   # riavviato com'era
+        self.assertEqual(sorted(os.listdir(os.path.join(self.M, "home"))), ["catture_ducati"])  # nient'altro sulla scatola
+        return d
+
+    def test_r9_senza_candump(self):
+        self._ciclo("r9", "r9-can-correlation")
+
+    def test_cm4_con_candump(self):
+        p = os.path.join(self.M, "bin", "candump")
+        with open(p, "w") as f:
+            f.write("#!/bin/bash\nexec -a candump bash -c \"trap 'exit 0' INT TERM; while true; do "
+                    "echo '(1.000000) can1 018#0011223344556677'; echo '(1.001000) can1 20000004#0001000000000000'; sleep 0.1; done\"\n")
+        os.chmod(p, 0o755)
+        d = self._ciclo("cm4", "h3d-cronometro")
+        log = canlog.leggi(os.path.join(d, next(f for f in os.listdir(d) if f.endswith(".log"))))
+        self.assertEqual(set(int(x) for x in log.id), {0x18})          # l'overflow non diventa l'ID 0x004
+        self.assertEqual(log.errori["overflow_rx"], log.errori["n"])
+        self.assertGreater(log.errori["n"], 0)
+
+
 class ProvaFineAFine(unittest.TestCase):
     def test_demo_sessione_e_js(self):
         cart = tempfile.mkdtemp()
@@ -220,7 +284,11 @@ class ProvaFineAFine(unittest.TestCase):
                 buf = f.read()
             S0 = leggi_json((os.path.join(cart, "struttura_demo.json")))
             S = calib.risolvi(S0, calib.trova_variante(S0, buf))
+            with open(os.path.join(cart, "marcatori.txt"), "w") as f:
+                f.write("1762430460.5 TC cambiato da 2 a 3\n1000.0 fuori dalla cattura\n")
             s = sessione.crea(os.path.join(cart, "demo_log.candump"), prof, cart, M, S, buf)
+            self.assertEqual([m["testo"] for m in s["meta"]["marcatori"]], ["TC cambiato da 2 a 3"])
+            os.remove(os.path.join(cart, "marcatori.txt"))
             sessione.salva(s, os.path.join(cart, "sessione_demo.json.gz"))
             self.assertGreater(s["modello"]["osservati"][0]["concordanza"], 0.9)
             self.assertEqual(sum(1 for g in s["giri"]["giri"] if g["tipo"] == "lanciato"), 5)

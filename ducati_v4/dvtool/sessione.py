@@ -196,13 +196,28 @@ def crea(percorso_log: str, profilo: dict, cartella_profilo: str = ".", modello_
             m, _ = trovato
             sorgenti[nome] = {"segnale": f"{m.nome}.{trovato[1].nome}", "id_hex": f"0x{m.id:03X}",
                               "stato": c.get("verificato", "")}
+    # marcatori (come nella prova SFV4): righe «epoca testo» in marcatori.txt accanto alla cattura
+    marcatori = []
+    pm = os.path.join(os.path.dirname(os.path.abspath(percorso_log)), "marcatori.txt")
+    if os.path.exists(pm):
+        with open(pm, "r", encoding="utf-8", errors="replace") as fh:
+            for riga in fh:
+                x = riga.strip().split(None, 1)
+                try:
+                    tm = float(x[0])
+                except (ValueError, IndexError):
+                    continue
+                if t0 - 1 <= tm <= t1 + 1:
+                    marcatori.append({"t": round(tm - t0, 3), "testo": x[1] if len(x) > 1 else ""})
+        if marcatori:
+            note.append(f"{len(marcatori)} marcatori da marcatori.txt")
     prot = protocollo.verifica(log, db, profilo.get("canali", {})) if db.messaggi else {
         "giudizio": "nessun DBC", "messaggi": [], "id_sconosciuti": log.inventario(), "segnali": [], "plausibilita": []}
     return {
         "tipo": "sessione_dvtool", "versione": 1,
         "meta": {"origine": os.path.basename(percorso_log), "creato": _dt.datetime.now().isoformat(timespec="seconds"),
                  "moto": profilo.get("moto", ""), "dbc": os.path.basename(dbc_path) if dbc_path else None,
-                 "t0_assoluto": t0, "note": note, "sorgenti": sorgenti,
+                 "t0_assoluto": t0, "note": note, "sorgenti": sorgenti, "marcatori": marcatori,
                  "file_calibrazione_sha256": calib.sha256(bytes(buf)) if buf is not None else None},
         "tempo": {"dt": 1.0 / f, "n": int(len(tg))},
         "canali": canali, "giri": giri_out, "modello": mod_out, "protocollo": prot,

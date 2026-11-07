@@ -1,0 +1,8 @@
+#!/bin/bash
+f="$SCATOLA/stato/can1"; [ -f "$f" ] || echo "off" > "$f"
+if [ "$1" = "-details" ]; then
+  if [ "$(cat $f)" = "on" ]; then echo "3: can1: <NOARP,UP,LOWER_UP,ECHO> mtu 16 state UP"; echo "    can <LISTEN-ONLY> state ERROR-ACTIVE bitrate 500000"
+  else echo "3: can1: <NOARP,UP,LOWER_UP,ECHO> mtu 16 state UP"; echo "    can state ERROR-ACTIVE bitrate 500000"; fi
+  exit 0; fi
+case "$*" in *"listen-only on"*) echo on > "$f";; *"listen-only off"*) echo off > "$f";; esac
+echo "ip $*" >> "$SCATOLA/stato/registro"

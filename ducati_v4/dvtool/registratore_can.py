@@ -37,6 +37,10 @@ def main():
     except OSError:
         kernel_ts = False
     s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4 * 1024 * 1024)
+    try:  # anche i frame di errore del controller (es. overflow dell'MCP2515), come candump "#FFFFFFFF"
+        s.setsockopt(getattr(socket, "SOL_CAN_RAW", 101), getattr(socket, "CAN_RAW_ERR_FILTER", 2), struct.pack("=I", 0x1FFFFFFF))
+    except OSError:
+        pass
     s.bind((bus,))
     fermo = {"v": False}
 
@@ -73,7 +77,7 @@ def main():
         can_id, dlc = struct.unpack_from("=IB", dati, 0)
         payload = dati[8: 8 + min(dlc, 8)]
         if can_id & CAN_ERR_FLAG:
-            ident = f"{can_id & 0x1FFFFFFF:08X}"
+            ident = f"{can_id & (CAN_ERR_FLAG | 0x1FFFFFFF):08X}"   # come candump: 20000004 = overflow del ricevitore
         elif can_id & CAN_EFF_FLAG:
             ident = f"{can_id & 0x1FFFFFFF:08X}"
         else:

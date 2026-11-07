@@ -232,6 +232,14 @@
         this.valori.append(el("div", { class: "stato " + (on ? "si" : "no") }, el("span", { class: "pallino" }), on ? "✕ la catena interviene" : "✓ nessun intervento"));
       }
       this.valori.append(el("table", { class: "dati" }, el("tbody", {}, righe)));
+      const M = (S.sess.meta && S.sess.meta.marcatori) || [];
+      if (M.length) {
+        const t = S.i * S.dt;
+        const tab = el("table", { class: "dati" }, el("tbody", {}, M.map((mk) => el("tr", { "data-i": Math.round(mk.t / S.dt), class: Math.abs(mk.t - t) < 1.5 ? "sel" : "" },
+          el("td", { class: "n" }, mk.t.toFixed(1) + " s"), el("td", {}, mk.testo)))));
+        tab.addEventListener("click", (e) => { const tr = e.target.closest("tr[data-i]"); if (tr) DV.vaiA(+tr.dataset.i); });
+        this.valori.append(el("h3", { style: { marginTop: "12px" } }, "Marcatori"), el("div", { class: "nota" }, "Clic per andare all'istante segnato."), el("div", { class: "scorre", style: { maxHeight: "240px" } }, tab));
+      }
     },
   };
   DV.registraVista("acquisizione", vista);

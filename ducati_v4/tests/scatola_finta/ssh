@@ -1,0 +1,6 @@
+#!/bin/bash
+# scatola finta per le prove: esegue il comando in locale con HOME e PATH della scatola (variabile SCATOLA)
+# finto ssh: esegue l'ultimo argomento in locale, con HOME della "scatola"
+cmd="${@: -1}"
+export HOME="$SCATOLA/home" PATH="$SCATOLA/bin:$PATH"
+exec bash -c "$cmd"

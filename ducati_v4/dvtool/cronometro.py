@@ -63,6 +63,8 @@ class Scatola:
     def __init__(self, cfg, nome=None, host=None, utente=None):
         self.nome = nome or cfg["scatola"]
         self.c = dict(cfg["scatole"][self.nome])
+        # la stessa scatola ha la stessa impronta via USB e via hotspot: la si salva sotto l'indirizzo USB
+        self.alias = self.c.get("alias") or self.c["host"]
         if host:
             self.c["host"] = host
         if utente:
@@ -74,7 +76,7 @@ class Scatola:
         return f"{self.c['utente']}@{self.c['host']}"
 
     def ssh(self, comando, interattivo=False, controlla=True):
-        args = ["ssh", "-o", "ConnectTimeout=8", "-o", f"HostKeyAlias={self.c['host']}"]
+        args = ["ssh", "-o", "ConnectTimeout=8", "-o", f"HostKeyAlias={self.alias}"]
         args += ["-t"] if interattivo else ["-o", "BatchMode=yes"]
         args += [self.dest, comando]
         if interattivo:
@@ -85,14 +87,14 @@ class Scatola:
         return r.stdout
 
     def scp_da(self, remoto, locale):
-        args = ["scp", "-o", "ConnectTimeout=8", "-o", f"HostKeyAlias={self.c['host']}", "-o", "BatchMode=yes",
+        args = ["scp", "-o", "ConnectTimeout=8", "-o", f"HostKeyAlias={self.alias}", "-o", "BatchMode=yes",
                 f"{self.dest}:{remoto}", locale]
         r = subprocess.run(args, capture_output=True, text=True)
         if r.returncode != 0:
             raise RuntimeError(f"scp fallito: {r.stderr.strip()}")
 
     def scp_a(self, locale, remoto):
-        args = ["scp", "-o", "ConnectTimeout=8", "-o", f"HostKeyAlias={self.c['host']}", "-o", "BatchMode=yes",
+        args = ["scp", "-o", "ConnectTimeout=8", "-o", f"HostKeyAlias={self.alias}", "-o", "BatchMode=yes",
                 locale, f"{self.dest}:{remoto}"]
         r = subprocess.run(args, capture_output=True, text=True)
         if r.returncode != 0:
@@ -136,14 +138,14 @@ NOME_REG = "dvtool_registratore.py"
 # il registratore si riconosce dal suo PID salvato (non con pgrep -f: la shell che esegue il comando via ssh
 # contiene lo stesso nome nella sua riga di comando e verrebbe scambiata per il registratore)
 _PID = ('P=$(cat "$D/.registratore.pid" 2>/dev/null); VIVO=""; '
-        '[ -n "$P" ] && kill -0 "$P" 2>/dev/null && grep -q registratore "/proc/$P/cmdline" 2>/dev/null && VIVO=$P; ')
+        '[ -n "$P" ] && kill -0 "$P" 2>/dev/null && grep -qaE "registratore|candump" "/proc/$P/cmdline" 2>/dev/null && VIVO=$P; ')
 # ferma il registratore: prima SIGINT, poi SIGTERM se serve (un processo in background può ignorare SIGINT)
 _FERMA = (_PID + '[ -n "$VIVO" ] && { kill -INT "$VIVO"; sleep 1.5; ' + _PID +
           '[ -n "$VIVO" ] && { kill -TERM "$VIVO"; sleep 1; }; }; ')
 
 
 def _ssh(sc: Scatola, comando, ingresso=None, timeout=60):
-    args = ["ssh", "-o", "ConnectTimeout=8", "-o", "BatchMode=yes", "-o", f"HostKeyAlias={sc.c['host']}",
+    args = ["ssh", "-o", "ConnectTimeout=8", "-o", "BatchMode=yes", "-o", f"HostKeyAlias={sc.alias}",
             "-o", "StrictHostKeyChecking=accept-new", sc.dest, comando]
     try:
         r = subprocess.run(args, input=ingresso, capture_output=True, text=True, timeout=timeout)
@@ -222,15 +224,29 @@ def op_registra(sc: Scatola) -> dict:
     with open(os.path.join(QUI, "registratore_can.py"), "r", encoding="utf-8") as f:
         script = f.read()
     cmd = (f'D="$HOME/{cart}"; mkdir -p "$D"; ' + _PID +
-           f'if [ -n "$VIVO" ]; then cat > /dev/null; echo "GIA_ATTIVO PID $VIVO"; else '
-           f'cat > /tmp/{NOME_REG}; '
+           f'if [ -n "$VIVO" ]; then cat > /dev/null; echo "GIA_ATTIVO PID $VIVO"; '
+           f'elif command -v candump >/dev/null 2>&1; then cat > /dev/null; '
+           f'F="$D/cattura_$(date +%Y%m%d_%H%M%S).log"; '
+           f'setsid nohup candump -L "{bus},0:0,#FFFFFFFF" > "$F" 2>> "$D/candump_err.txt" < /dev/null & '
+           f'echo $! > "$D/.registratore.pid"; echo "$(date +%s.%N) INIZIO $(basename "$F") candump bus={bus}" >> "$D/marcatori.txt"; '
+           f'echo "con candump -L (come nella prova SFV4) in $F"; sleep 2; '
+           f'else cat > /tmp/{NOME_REG}; '
            f'setsid nohup python3 /tmp/{NOME_REG} {bus} "$D" >> "$D/registratore.out" 2>&1 < /dev/null & '
            f'echo $! > "$D/.registratore.pid"; sleep 2; fi; ' + _PID +
-           f'[ -n "$VIVO" ] && echo "REGISTRA PID $VIVO" || echo NON_PARTITO; tail -2 "$D/registratore.out"')
+           f'[ -n "$VIVO" ] && echo "REGISTRA PID $VIVO" || echo NON_PARTITO; tail -2 "$D/registratore.out" 2>/dev/null; true')
     rc, out, err = _ssh(sc, cmd, ingresso=script, timeout=30)
     ok = rc == 0 and "REGISTRA PID" in out
     return {"ok": ok, "testo": out.strip(), "gia_attivo": "GIA_ATTIVO" in out,
             "errore": None if ok else (_spiega_errore_ssh(err) if rc == 255 else out.strip()[-400:])}
+
+
+def op_marca(sc: Scatola, testo: str) -> dict:
+    """Segna un momento (come i marcatori della prova SFV4): riga «epoca testo» in ~/catture_ducati/marcatori.txt,
+    con l'orologio della scatola, lo stesso delle catture."""
+    t = " ".join(str(testo).split())[:80] or "segno"
+    rc, out, err = _ssh(sc, f'D="$HOME/{sc.cartella}"; mkdir -p "$D"; T=$(date +%s.%N); printf "%s %s\\n" "$T" {shlex.quote(t)} >> "$D/marcatori.txt"; echo "$T"',
+                        timeout=15)
+    return {"ok": rc == 0, "t": out.strip(), "testo": t, "errore": None if rc == 0 else _spiega_errore_ssh(err)}
 
 
 def op_ferma(sc: Scatola) -> dict:

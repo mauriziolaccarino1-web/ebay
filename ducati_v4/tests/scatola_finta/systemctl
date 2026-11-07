@@ -1,0 +1,7 @@
+#!/bin/bash
+d="$SCATOLA/stato"
+case "$1" in
+  is-active) [ "$2" = "--quiet" ] && s="$3" || s="$2"; if [ -f "$d/attivo_$s" ]; then [ "$2" = "--quiet" ] || echo active; exit 0; else [ "$2" = "--quiet" ] || echo inactive; exit 3; fi;;
+  stop) rm -f "$d/attivo_$2"; echo "stop $2" >> "$d/registro";;
+  start) touch "$d/attivo_$2"; echo "start $2" >> "$d/registro";;
+esac

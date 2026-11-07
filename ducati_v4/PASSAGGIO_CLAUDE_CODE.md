@@ -65,6 +65,11 @@ o con Claude Code in Remote Control) e poi sul PC di lavoro. Il contesto complet
 7. **Porta sul PC di lavoro** `ducati_v4_trasferimento.zip` (e, se serve per B3, la chiave) con il trasferimento
    file di AnyDesk o con OneDrive.
 
+**Riferimento:** la prova CM4 + Streetfighter V4 2023 del 31/10, con le note in `D:\h3d_note\sfv4_2023\`
+(`STATO.md`, `prova_sfv4.sh`, `analisi\cattura_20261031_172807_analisi.md`). Contiene la procedura passiva usata e
+riprodotta qui, i 28 campi confermati e i problemi trovati: sentinelle all'accensione, bit DWC off = b5.6, scale AiM
+del power mode sfalsate di uno, assi IMU 0x178/0x17C ruotati di circa 56°.
+
 ## B. PC di lavoro (Claude Code)
 
 1. **Strumenti come in A1.** Poi, per vedere il visualizzatore, `dvtool.bat demo --apri`.
@@ -80,11 +85,20 @@ o con Claude Code in Remote Control) e poi sul PC di lavoro. Il contesto complet
    - **Passo 1:** le voci devono essere tutte verdi, tranne le acquisizioni.
    - **Passo 2, con la scatola collegata via USB**, anche se è ancora montata sulla R9: lettura sola. Atteso:
      hostname `r9-yccu`, `can1` normale, stato dei servizi `r9-can-correlation`/`r9-can`, spazio libero.
-5. **Prima prova sulla Ducati, in garage**, con la scatola collegata alla presa CAN della moto. Il pinout della presa
-   Ducati non è mai stato annotato: verificalo prima di collegare.
+5. **Prima prova sulla Ducati, in garage**, con la scatola collegata alla presa CAN della moto. Prima di collegare,
+   leggi *Collegamento alla presa della Ducati* nel README: pinout non annotato, 60 Ω, tensioni, ponticello da 120 Ω,
+   quadro acceso. Rifai la stessa sequenza della prova CM4 sulla Streetfighter del 31/10, segnando ogni azione con
+   *Segna un momento* (passo 3 della Guida).
    - **Passo 3 della Guida:** password di sudo, poi registra.
-   - **Accendi il quadro**, poi accendi il motore al minimo. Cambia il livello del TC e dell'AW dal cruscotto, piega
-     la moto a destra e a sinistra sul cavalletto, fai girare a mano la ruota anteriore.
+   - **Sequenza da segnare:**
+     1. quadro acceso, fermo per 40 s;
+     2. gas 0 → 100 tre volte;
+     3. leva del freno anteriore e pedale del posteriore;
+     4. folle → prima;
+     5. livelli dal menu: TC, AW, SCS, freno motore, potenza;
+     6. motore acceso al minimo;
+     7. moto piegata a destra e a sinistra sul cavalletto;
+     8. ruota anteriore girata a mano. Il 31/10 gli ultimi due non erano stati fatti: ruote e piega sono ancora da verificare.
    - **Passo 4:** ferma, scarica, rimetti la scatola come per la R9.
    - **Verifica:**
      ```

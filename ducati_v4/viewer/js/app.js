@@ -191,6 +191,16 @@
       }
       ctx.stroke();
     }
+    // marcatori (verifica in garage): tacca viola con il testo
+    const M = (S.sess.meta && S.sess.meta.marcatori) || [];
+    ctx.font = "10px system-ui";
+    let ultimoX = -1e9;
+    for (const mk of M) {
+      const x = (mk.t / S.dt / n) * w;
+      ctx.fillStyle = DV.colore("--s7");
+      ctx.fillRect(x, 12, 1.5, h - 20);
+      if (x - ultimoX > 70) { ctx.fillText(mk.testo.slice(0, 14), x + 3, 22); ultimoX = x; }
+    }
     if (S.giro) {
       const a = (DV.tRel(S.giro.t_inizio) / S.dt / n) * w, b = (DV.tRel(S.giro.t_fine) / S.dt / n) * w;
       ctx.strokeStyle = DV.colore("--s1");

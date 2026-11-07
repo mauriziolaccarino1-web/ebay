@@ -76,7 +76,9 @@
    "segnale": "ECU_Throttle_100.TPS_Vert",
    "unita": "deg",
    "nome": "farfalle",
-   "verificato": "sì (unità incerta)"
+   "verificato": "sì (unità incerta)",
+   "min": 0,
+   "max": 120
   },
   "freno_ant": {
    "segnale": "RX_ABS_022.BrakeFront",
@@ -88,19 +90,25 @@
    "segnale": "RX_WheelSpeed_018.DTC_Lv",
    "unita": "",
    "nome": "livello DTC",
-   "verificato": "sì"
+   "verificato": "sì",
+   "min": 0,
+   "max": 8
   },
   "dwc_livello": {
    "segnale": "RX_WheelSpeed_018.DWC_Lv",
    "unita": "",
    "nome": "livello DWC",
-   "verificato": "sì"
+   "verificato": "sì",
+   "min": 0,
+   "max": 8
   },
   "dsc_livello": {
    "segnale": "RX_WheelSpeed_018.DSC_Lv",
    "unita": "",
    "nome": "livello DSC",
-   "verificato": "sì"
+   "verificato": "sì",
+   "min": 0,
+   "max": 3
   },
   "trq_slow": {
    "segnale": "RX_TorqueRequest_019.TrqSlow",
@@ -124,7 +132,9 @@
    "segnale": "ECU_EngineStatus2_080.EngPowerMode",
    "unita": "",
    "nome": "riding mode (0 Race, 1 Sport, 2 Road)",
-   "verificato": "sì"
+   "verificato": "sì",
+   "min": 0,
+   "max": 3
   },
   "rollio": {
    "segnale": "IMU_174.Roll_Rate",
@@ -160,7 +170,9 @@
    "segnale": "ECU_Status190.EBC_Level",
    "unita": "",
    "nome": "livello EBC (freno motore)",
-   "verificato": "sì (eco della richiesta 0x300)"
+   "verificato": "sì (eco della richiesta 0x300)",
+   "min": 1,
+   "max": 3
   },
   "tc_eff": {
    "espressione": "where(dtc_off > 0.5, 0, round(dtc_livello))",
@@ -176,5 +188,6 @@
   }
  },
  "scatola": "r9",
- "_livelli": "Livelli selezionabili sulla V4 R: potenza (Power Mode, 0x080), TC = DTC, SCS = DSC, AW = DWC (0x018, anche dal cruscotto 0x020 come livello-1), freno motore = EBC (0x190). I canali *_eff valgono 0 quando il controllo è spento. Scale e valori da verificare al primo turno: DTC_Lv viene dalle formule AiM (0.5 per bit, +1)."
+ "_livelli": "Livelli selezionabili sulla V4 R: potenza (Power Mode, 0x080), TC = DTC, SCS = DSC, AW = DWC (0x018, anche dal cruscotto 0x020 come livello-1), freno motore = EBC (0x190). I canali *_eff valgono 0 quando il controllo è spento. Scale e valori da verificare al primo turno: DTC_Lv viene dalle formule AiM (0.5 per bit, +1).",
+ "_sentinelle": "All'accensione arrivano valori sentinella (prova SFV4 31/10): 0xFF su gas e temperature, 0xFFF su farfalle e coppie, raw 0 = piega -409.6, marcia 7, livelli 0xF (8.5). I campi min/max li scartano (NaN): i livelli prendono il valore precedente."
 }

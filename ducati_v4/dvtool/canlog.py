@@ -31,13 +31,14 @@ class Log:
     data: np.ndarray
     origine: str = ""
     note: str = ""
+    errori: dict = None   # frame di errore del controller: {"n": ..., "overflow_rx": ..., "t": [...]}
 
     def __len__(self):
         return len(self.t)
 
     def ordina(self):
         o = np.argsort(self.t, kind="stable")
-        return Log(self.t[o], self.id[o], self.dlc[o], self.data[o], self.origine, self.note)
+        return Log(self.t[o], self.id[o], self.dlc[o], self.data[o], self.origine, self.note, self.errori)
 
     def filtra_id(self, ids):
         k = np.isin(self.id, np.asarray(list(ids), dtype=np.uint32))
@@ -87,11 +88,16 @@ _RE_ASC = re.compile(r"^\s*(\d+\.\d+)\s+(\d+)\s+([0-9A-Fa-f]+)x?\s+(Rx|Tx)\s+d\s
 
 def leggi_testo(righe, origine="testo") -> Log:
     tt, ii, ll, dd = [], [], [], []
+    et, ed = [], []
     t_finto = 0.0
     for r in righe:
         m = _RE_L.match(r)
         if m:
             payload = bytes.fromhex(m.group(5)) if m.group(5) else b""
+            if len(m.group(3)) == 8 and int(m.group(3), 16) & 0x20000000:
+                # frame di errore (candump -L "...#FFFFFFFF"): non è un messaggio della moto
+                et.append(float(m.group(1))); ed.append(payload)
+                continue
             tt.append(float(m.group(1))); ii.append(int(m.group(3), 16) & 0x1FFFFFFF)
             ll.append(len(payload)); dd.append(payload)
             continue
@@ -111,7 +117,15 @@ def leggi_testo(righe, origine="testo") -> Log:
             t_finto += 0.001
             tt.append(t_finto); ii.append(int(m.group(2), 16)); ll.append(int(m.group(3))); dd.append(payload)
     nota = "senza tempi: passo fittizio 1 ms" if t_finto else ""
-    return _da_liste(tt, ii, ll, dd, origine, nota)
+    log = _da_liste(tt, ii, ll, dd, origine, nota)
+    log.errori = _errori(et, ed)
+    return log
+
+
+def _errori(et, ed):
+    """Riassunto dei frame di errore: classe controller (0x4) con byte 1 bit 0 = overflow in ricezione."""
+    ov = sum(1 for d in ed if len(d) > 1 and d[1] & 0x01)
+    return {"n": len(et), "overflow_rx": ov, "t": et}
 
 
 _COL_T = ("t", "ts", "time", "timestamp", "tempo", "t_s", "t_mono", "mono", "time_s", "t_ns", "ts_ns", "t_us", "ts_us")
@@ -272,7 +286,10 @@ def leggi_cartella(percorso: str) -> Log:
     logs = [leggi(f) for f in sorted(files)]
     t = np.concatenate([x.t for x in logs]); i = np.concatenate([x.id for x in logs])
     l = np.concatenate([x.dlc for x in logs]); d = np.concatenate([x.data for x in logs])
-    return Log(t, i, l, d, percorso, f"{len(files)} segmenti").ordina()
+    out = Log(t, i, l, d, percorso, f"{len(files)} segmenti").ordina()
+    er = [x.errori for x in logs if x.errori]
+    out.errori = {"n": sum(e["n"] for e in er), "overflow_rx": sum(e["overflow_rx"] for e in er), "t": [v for e in er for v in e["t"]]}
+    return out
 
 
 def leggi(percorso: str, tabella: str | None = None) -> Log:

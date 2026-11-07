@@ -40,7 +40,7 @@ _FUNZ = {
     "abs": np.abs, "min": np.minimum, "max": np.maximum, "sqrt": np.sqrt, "tan": np.tan, "sin": np.sin,
     "cos": np.cos, "atan": np.arctan, "atan2": np.arctan2, "radians": np.radians, "degrees": np.degrees,
     "clip": np.clip, "where": np.where, "sign": np.sign, "exp": np.exp, "log": np.log, "floor": np.floor,
-    "round": np.round,
+    "round": lambda x: np.floor(np.asarray(x, dtype=float) + 0.5),   # come Math.round del browser
 }
 
 
@@ -228,7 +228,7 @@ def valori_parametri(modello: dict, segnali: dict, n: int, scelte=None) -> dict:
         if scelta is None:
             scelta = "can" if d["canale"] and d["canale"] in segnali else d["valore"]
         if scelta == "can" and d["canale"] in segnali:
-            a = np.round(np.asarray(segnali[d["canale"]], dtype=float))
+            a = np.floor(np.asarray(segnali[d["canale"]], dtype=float) + 0.5)
             ok = np.isfinite(a)
             if ok.any():
                 idx = np.where(ok, np.arange(n), 0)

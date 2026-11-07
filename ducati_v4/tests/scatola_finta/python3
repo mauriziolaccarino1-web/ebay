@@ -1,0 +1,8 @@
+#!/bin/bash
+# il "registratore" sulla scatola finta: scrive frame finti finché non riceve SIGINT
+if [[ "$1" == /tmp/dvtool_registratore.py ]]; then
+  trap 'echo "fermato" ; exit 0' INT TERM
+  f="$3/cattura_prova.log"; echo "registro $2 in $f"
+  exec -a dvtool_registratore.py bash -c "trap 'exit 0' INT TERM; while true; do echo '(1.0) can1 018#0011223344556677' >> '$f'; sleep 0.2; done"
+fi
+exec /usr/bin/python3 "$@"

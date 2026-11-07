@@ -128,6 +128,8 @@ def op_cronometro(azione: str, dati: dict) -> dict:
         return cronometro.op_registra(sc)
     if azione == "ferma":
         return cronometro.op_ferma(sc)
+    if azione == "marca":
+        return cronometro.op_marca(sc, dati.get("testo", ""))
     if azione == "scarica":
         return cronometro.op_scarica(sc, _p(imp["acquisizioni"]))
     if azione == "ripristina":

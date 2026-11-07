@@ -147,8 +147,27 @@
         const cresce = tot(b) > tot(a);
         mostra(box2, b.ok && b.registratore.length && cresce, b.ok ? (cresce ? `Sta registrando: +${((tot(b) - tot(a)) / 1e3).toFixed(0)} kB in 3 s` : "Il file non cresce: la moto è accesa? il CAN è collegato?") : "Scatola non raggiungibile", schedaStato(b));
       } }, "Controlla che stia registrando")), box, box2),
+      schedaMarcatori(),
       el("p", { class: "nota" }, "Se spegni la moto e la scatola si spegne con lei, alla riaccensione ripeti questo passo: dopo lo spegnimento la scatola torna come per la R9."),
       avanti(3));
+  }
+
+  // marcatori: come nella prova SFV4 del 31/10, ogni azione in garage segnata con l'orologio della scatola
+  const AZIONI = ["quadro acceso", "motore acceso", "gas 0→100 tre volte", "leva freno anteriore", "pedale freno posteriore",
+    "folle → prima", "TC cambiato", "AW cambiato", "SCS cambiato", "freno motore cambiato", "potenza cambiata",
+    "piega a destra", "piega a sinistra", "ruota anteriore girata a mano"];
+  function schedaMarcatori() {
+    const box = el("div", { class: "nota" });
+    const libero = el("input", { type: "text", placeholder: "oppure scrivi tu, es. «DTC da 3 a 5»" });
+    const segna = async (testo) => {
+      const r = await api("POST", "/api/cronometro/marca", { testo });
+      box.prepend(el("div", {}, r.ok ? `✓ ${new Date().toLocaleTimeString()} · ${r.testo}` : `✕ ${r.errore}`));
+    };
+    return el("div", { class: "scheda" }, el("h3", {}, "Segna un momento (verifica in garage)"),
+      el("p", { class: "nota" }, "Premi il pulsante mentre fai l'azione: il segno finisce nelle catture e nel visualizzatore compare sulla linea del tempo, così si vede subito quale canale si muove. È il metodo usato con la CM4 sulla Streetfighter."),
+      el("div", { class: "azioni" }, ...AZIONI.map((a) => el("button", { class: "bottone", onclick: () => segna(a) }, a))),
+      el("div", { class: "azioni" }, libero, el("button", { class: "bottone", onclick: () => { if (libero.value.trim()) { segna(libero.value.trim()); libero.value = ""; } } }, "Segna")),
+      box);
   }
 
   // ---- 4

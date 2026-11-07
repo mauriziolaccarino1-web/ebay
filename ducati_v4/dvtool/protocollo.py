@@ -88,12 +88,17 @@ def verifica(log, db, canali_mappati: dict | None = None) -> dict:
     n_pres = sum(1 for m in messaggi if m["presente"])
     n_crc = sum(1 for x in integ if x["protetto"])
     persi = sum(x.get("frame_persi_stimati", 0) for x in integ)
+    err = getattr(log, "errori", None) or {"n": 0, "overflow_rx": 0}
+    durata = max(float(log.t[-1] - log.t[0]), 1e-9) if len(log) else 1.0
+    ricevitore = {"frame_errore": err["n"], "overflow_rx": err["overflow_rx"], "overflow_al_minuto": round(err["overflow_rx"] / durata * 60, 2),
+                  "frame_al_secondo": round(len(log) / durata, 1)}
     giudizio = (f"{n_pres}/{len(messaggi)} messaggi del DBC presenti, {len(sconosciuti)} ID non descritti; "
                 f"{n_crc}/{len(integ)} ID con contatore+CRC-8 J1850 come la V4S; "
                 f"{sum(1 for p in plaus if p['esito'] == 'ok')}/{len(plaus)} controlli fisici ok"
-                + (f"; ~{persi} frame persi dal registratore" if persi else ""))
+                + (f"; ~{persi} frame persi dal registratore" if persi else "")
+                + (f"; {err['overflow_rx']} overflow del ricevitore (MCP2515)" if err["overflow_rx"] else ""))
     return {"giudizio": giudizio, "messaggi": messaggi, "id_sconosciuti": sconosciuti, "segnali": segnali,
-            "plausibilita": plaus, "integrita": integ}
+            "plausibilita": plaus, "integrita": integ, "ricevitore": ricevitore}
 
 
 def _serie(dec, nome):
@@ -170,6 +175,11 @@ def in_markdown(r: dict) -> str:
     for x in r.get("integrita", []):
         righe.append(f"| {x['id_hex']} | {x['frame']} | {x.get('crc_j1850_%', '')} | {x.get('contatore_ok_%', '')} | "
                      f"{x.get('frame_persi_stimati', '')} | {x.get('buchi', '')} |")
+    rv = r.get("ricevitore")
+    if rv:
+        righe += ["", "## Ricevitore della scatola", "",
+                  f"- {rv['frame_al_secondo']} frame/s; {rv['frame_errore']} frame di errore, di cui {rv['overflow_rx']} overflow in ricezione "
+                  f"({rv['overflow_al_minuto']} al minuto). Sulla SFV4 con la CM4 erano 12 in 48 s."]
     righe += ["", "## Controlli fisici", ""]
     for p in r["plausibilita"]:
         righe.append(f"- **{p['esito']}** — {p['controllo']}: {p['valore']} ({p['nota']})")

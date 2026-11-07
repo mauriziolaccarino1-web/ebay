@@ -1,0 +1,4 @@
+#!/bin/bash
+# finto sudo: -S legge la password da stdin, deve essere "segreta"
+if [ "$1" = "-S" ]; then shift; [ "$1" = "-p" ] && shift 2; read -r pw; [ "$pw" = "segreta" ] || { echo "Sorry, try again." >&2; exit 1; }; fi
+exec "$@"
