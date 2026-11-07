@@ -247,6 +247,7 @@ class ProvaCronometroScatolaFinta(unittest.TestCase):
             with open(p_can) as f:
                 self.assertNotEqual(f.read().strip(), "on")   # password sbagliata: can1 non cambia
         self.assertTrue(c.op_prepara(sc, "segreta")["ok"])
+        self.assertTrue(c.op_prepara(sc, "segreta")["ok"])   # turno dopo: servizi già fermi, la lista resta
         r = c.op_registra(sc)
         self.assertTrue(r["ok"], r)
         self.assertTrue(c.op_registra(sc)["gia_attivo"])
@@ -266,6 +267,7 @@ class ProvaCronometroScatolaFinta(unittest.TestCase):
             self.assertIn("TC cambiato", f.read())
         self.assertTrue(c.op_ripristina(sc, "segreta")["ok"])
         self.assertTrue(os.path.exists(os.path.join(self.M, "stato", "attivo_" + servizio)))   # riavviato com'era
+        self.assertFalse(os.path.exists(os.path.join(self.M, "home", "catture_ducati", ".servizi_attivi_prima")))
         self.assertEqual(sorted(os.listdir(os.path.join(self.M, "home"))), ["catture_ducati"])  # nient'altro sulla scatola
         return d
 

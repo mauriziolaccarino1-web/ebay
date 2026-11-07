@@ -259,7 +259,9 @@ def op_prepara(sc: Scatola, password: str = "") -> dict:
     servizi = " ".join(sc.c.get("servizi_da_fermare", []))
     cmd = (_guardia_presa(sc) + f'D="$HOME/{cart}"; mkdir -p "$D"; ATTIVI=""; '
            f'for s in {servizi}; do systemctl is-active --quiet "$s" && ATTIVI="$ATTIVI $s"; done; '
-           f'echo "$ATTIVI" > "$D/.servizi_attivi_prima"; '
+           # un secondo «prepara» (turno dopo, servizi già fermi) non deve cancellare la lista di quelli da riavviare
+           f'PRIMA=$(cat "$D/.servizi_attivi_prima" 2>/dev/null); '
+           f'for s in $PRIMA $ATTIVI; do echo "$s"; done | sort -u | tr "\\n" " " > "$D/.servizi_attivi_prima"; '
            f'sudo -S -p "" sh -c "for s in $ATTIVI; do systemctl stop \\$s; done; ip link set {bus} down; '
            f'ip link set {bus} type can bitrate {br} listen-only on; ip link set {bus} up" && '
            f'echo "servizi fermati:$ATTIVI"; ip -details link show {bus} | grep -o LISTEN-ONLY || echo NON_IN_ASCOLTO')
@@ -410,7 +412,8 @@ def op_ripristina(sc: Scatola, password: str = "") -> dict:
     cmd = (f'D="$HOME/{cart}"; ' + _FERMA +
            f'ATTIVI=$(cat "$D/.servizi_attivi_prima" 2>/dev/null); '
            f'sudo -S -p "" sh -c "ip link set {bus} down; ip link set {bus} type can bitrate {br} listen-only off; '
-           f'ip link set {bus} up; for s in $ATTIVI; do systemctl start \\$s; done" && echo "servizi riavviati:$ATTIVI"; '
+           f'ip link set {bus} up; for s in $ATTIVI; do systemctl start \\$s; done" && echo "servizi riavviati:$ATTIVI" && '
+           f'rm -f "$D/.servizi_attivi_prima"; '
            f'ip -details link show {bus} | grep -q LISTEN-ONLY && echo ANCORA_IN_ASCOLTO || echo NORMALE')
     rc, out, err = _ssh(sc, cmd, ingresso=(password or "") + "\n", timeout=40)
     ok = rc == 0 and "NORMALE" in out
