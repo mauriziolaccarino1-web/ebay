@@ -114,6 +114,16 @@ Maurizio scrive spesso dal telefono, in italiano: risposte brevi, passo per pass
 
 ## Cosa si può fare con una cattura
 
+**La cattura grezza è il dato di riferimento.**
+- Il registratore salva l'intero bus senza filtri: ogni frame con il suo tempo, anche gli ID che non sono nel
+  DBC e i frame di errore.
+- Sessioni, canali e replay si ricalcolano sempre dal grezzo. Le catture in `privato\acquisizioni` (e sulla
+  scatola in `~/catture_ducati`) non si modificano e non si cancellano.
+- Gli ID non ancora visti sulla Panigale (0x174, 0x178, 0x17C, 0x330) restano definiti nel DBC e nel profilo:
+  se compaiono, vengono decodificati da soli rifacendo l'analisi.
+- Gli ID nuovi o non descritti finiscono nella verifica del protocollo («ID presenti nel log ma non nel DBC»:
+  frequenza, DLC, byte che cambiano), da cui si ricostruiscono i segnali a posteriori.
+
 **Subito, senza struttura e modello:** giri, curve, mappa della pista, canali, livelli, segni, protocollo.
 ```
 dvtool.bat can verifica <cattura.log> --dbc privato\can\SFV4_bus_practical.dbc --profilo esempi\profilo_ducati_v4.json --out verifica.md

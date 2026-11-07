@@ -190,6 +190,8 @@ Note:
 - Se la scatola si spegne con la moto, alla riaccensione è tornata come per la R9: rifai *prepara* e *registra* (passo 3 della Guida).
 - Sulla R9 il registratore Python lascia `.registratore.stato` (frame/s, persi, overflow, CPU) aggiornato ogni 5 s, e a fine registrazione la riga `FINE` in `marcatori.txt` con i totali.
 - Il formato registrato è quello di `candump -L` (come la cattura SFV4 del 31/10), letto direttamente da tutti i comandi.
+- Si registra tutto il bus grezzo, senza filtri: anche gli ID non descritti nel DBC. Le catture non si modificano
+  e non si cancellano; ogni analisi si rifà da lì, anche dopo aver aggiornato DBC o profilo.
 - Senza GPS l'orologio della scatola può essere sbagliato: per l'analisi contano solo i tempi relativi.
 - L'MCP2515 a questo carico perde qualche frame (12 overflow in 48 s sulla SFV4): la verifica del protocollo li conta per ID.
 - Si leggono anche i segmenti `r9-can` (`.jsonl.gz`) e le cartelle `app_data/can_cablato/`.
