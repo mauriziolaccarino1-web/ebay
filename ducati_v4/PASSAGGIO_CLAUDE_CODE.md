@@ -1,7 +1,8 @@
 # Passaggio a Claude Code: verifiche iniziali
 
 Documento per la sessione di Claude Code che fa le prime verifiche, sul PC di casa (raggiungibile solo con AnyDesk
-o con Claude Code in Remote Control) e poi sul PC di lavoro. Il contesto completo è nel README.
+o con Claude Code in Remote Control) e poi sul PC di lavoro. **Prima leggi `CONTESTO.md`**: è il riassunto della
+discussione con Maurizio (obiettivi, decisioni, regole, punti aperti). I comandi sono nel README.
 
 ## Situazione
 
