@@ -119,7 +119,8 @@
 
   // ---- 3
   function passoRegistra(main) {
-    main.append(el("h2", {}, "3 · Registra"), el("p", { class: "intro" }, "Ai box, con la scatola collegata alla presa CAN della moto e accesa. Dopo l'avvio puoi staccare il PC: la registrazione continua da sola."),
+    main.append(el("h2", {}, "3 · Registra"), el("p", { class: "intro" }, "Ai box, con la scatola collegata alla presa CAN della Ducati e accesa. Dopo l'avvio puoi staccare il PC: la registrazione continua da sola."),
+      el("div", { class: "avvertenza" }, el("b", {}, "Solo sulla Ducati, mai con la scatola montata sulla R9: "), "sul bus della R9 la centralina ha bisogno dell'ACK della scatola e con can1 in ascolto passivo continuerebbe a ritrasmettere. Sulla R9 usa solo «Prova il collegamento»."),
       el("div", { class: "cosa-cambia" }, el("b", {}, "Cosa cambia sulla scatola della R9, e solo finché non la ripristini o la spegni:"),
         el("ul", {}, el("li", {}, "i due registratori della R9 che usano can1 vengono fermati (non disattivati);"),
           el("li", {}, "can1 va in ascolto passivo a 500 kbit/s: non dà l'ACK e non può trasmettere nulla sulla Ducati;"),

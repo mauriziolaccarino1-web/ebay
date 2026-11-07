@@ -297,6 +297,7 @@ def stato(sc: Scatola):
 
 def prepara(sc: Scatola, a):
     print("Ferma per ora i servizi che usano can1 (non li disattiva) e mette can1 in ascolto a 500 kbit/s.")
+    print("ATTENZIONE: solo con la scatola collegata alla Ducati. Mai sulla R9: la sua centralina vuole l'ACK della scatola.")
     if not _conferma("Procedo?", a):
         return
     import getpass
